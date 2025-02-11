@@ -23,13 +23,10 @@ jobs:
 
       - name: Test wolfProvider
         run: |
-          export WOLFPROV_DEBUG=1
-          echo "WORKSPACE = "
-          echo $GITHUB_WORKSPACE
-          OPENSSL_TAG=master WOLFSSL_TAG=master WOLFPROV_DEBUG=1 ./scripts/build-wolfprovider.sh
+          OPENSSL_TAG=master WOLFSSL_TAG=master ./scripts/build-wolfprovider.sh
           make check
 
-      - name: Print errors 
+      - name: Print errors
         if: ${{ failure() }}
         run: |
           if [ -f test-suite.log ] ; then
@@ -53,11 +50,7 @@ jobs:
       - name: Test curl with wolfProvider
         working-directory: curl
         run: |
-          echo "WORKSPACE = "
-          echo $GITHUB_WORKSPACE
           export LD_LIBRARY_PATH=$GITHUB_WORKSPACE/wolfssl-install/lib:$GITHUB_WORKSPACE/openssl-install/lib64
           export OPENSSL_CONF=$GITHUB_WORKSPACE/provider.conf
           export OPENSSL_MODULES=$GITHUB_WORKSPACE/wolfprov-install/lib
-          echo "OSSL CONF = "
-          echo $OPENSSL_CONF
           make -j $(nproc) test-ci
