@@ -17,6 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     # This should be a safe limit for the tests to run.
     timeout-minutes: 20
+    strategy:
+      matrix:
+        curl_ref: [ 'master', 'curl-8_4_0' ]
     steps:
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
@@ -43,7 +46,7 @@ jobs:
         with:
           repository: curl/curl
           path: curl
-          ref: curl-8_4_0
+          ref: ${{ matrix.curl_ref }}
           configure: --with-openssl=$GITHUB_WORKSPACE/openssl-install/
           check: false
 
