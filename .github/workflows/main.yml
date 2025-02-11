@@ -24,6 +24,8 @@ jobs:
       - name: Test wolfProvider
         run: |
           export WOLFPROV_DEBUG=1
+          echo "WORKSPACE = "
+          echo $GITHUB_WORKSPACE
           OPENSSL_TAG=master WOLFSSL_TAG=master WOLFPROV_DEBUG=1 ./scripts/build-wolfprovider.sh
           make check
 
