@@ -43,7 +43,7 @@ jobs:
           make check
 
       - name: Print errors
-        if: steps.cache.outputs.cache-hit != 'true' && ${{ failure() }}
+        if: ${{ failure() }}
         run: |
           if [ -f test-suite.log ] ; then
             cat test-suite.log
@@ -58,7 +58,7 @@ jobs:
       matrix:
         curl_ref: [ 'master', 'curl-8_4_0' ]
     steps:
-      - name: Checking if we have nss in cache
+      - name: Checking if we have dependencies in cache
         uses: actions/cache/restore@v4
         id: cache
         with:
