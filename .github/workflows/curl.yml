@@ -68,7 +68,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       matrix:
-        curl_ref: [ 'master', 'curl-8_4_0' ],
+        curl_ref: [ 'master', 'curl-8_4_0' ]
         wolfssl_ref: ['master', 'v5.7.4-stable']
     steps:
       - name: Checking for OpenSSL in cache
