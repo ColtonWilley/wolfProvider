@@ -1,4 +1,4 @@
-name: Curl Tests
+name: Nginx Tests
 
 # START OF COMMON SECTION
 on:
@@ -65,14 +65,14 @@ jobs:
             cat test-suite.log
           fi
 
-  test_curl:
+  test_nginx:
     runs-on: ubuntu-22.04
     needs: build_wolfprovider
     # This should be a safe limit for the tests to run.
     timeout-minutes: 20
     strategy:
       matrix:
-        curl_ref: [ 'master', 'curl-8_4_0' ]
+        nginx_ref: [ 'master', 'release-1.27.4' ]
         wolfssl_ref: [ 'master', 'v5.7.4-stable' ]
     steps:
       - name: Retrieving OpenSSL from cache
@@ -99,24 +99,34 @@ jobs:
           key: wolfprov-${{ matrix.wolfssl_ref }}-${{ github.sha }}
           fail-on-cache-miss: true
 
-      - name: Install curl test dependencies
+      - name: Install nginx dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install nghttp2 libpsl5 libpsl-dev python3-impacket
+          sudo cpan -iT Proc::Find Net::SSLeay IO::Socket::SSL
 
-      - name: Build curl
-        uses: wolfSSL/actions-build-autotools-project@v1
+      - name: Checkout nginx
+        uses: actions/checkout@v4
         with:
-          repository: curl/curl
-          path: curl
-          ref: ${{ matrix.curl_ref }}
-          configure: --with-openssl=$GITHUB_WORKSPACE/openssl-install/
-          check: false
+          repository: nginx/nginx
+          path: nginx
+          ref: ${{ matrix.nginx_ref }}
 
-      - name: Test curl with wolfProvider
-        working-directory: curl
+      - name: Build nginx
+        working-directory: nginx
+        run: |
+          ./auto/configure --with-http_ssl_module --with-stream --with-stream_ssl_module --with-stream_ssl_preread_module --with-http_v2_module --with-mail --with-mail_ssl_module
+          make -j
+
+      - name: Checkout nginx-tests
+        uses: actions/checkout@v4
+        with:
+          repository: nginx/nginx-tests
+          path: nginx-tests
+          ref: master
+
+      - name: Run nginx-tests with wolfProvider
+        working-directory: nginx-tests
         run: |
           export LD_LIBRARY_PATH=$GITHUB_WORKSPACE/wolfssl-install/lib:$GITHUB_WORKSPACE/openssl-install/lib64
           export OPENSSL_CONF=$GITHUB_WORKSPACE/provider.conf
           export OPENSSL_MODULES=$GITHUB_WORKSPACE/wolfprov-install/lib
-          make -j $(nproc) test-ci
+          TEST_NGINX_VERBOSE=y TEST_NGINX_CATLOG=y TEST_NGINX_BINARY=../nginx/objs/nginx prove -v .
