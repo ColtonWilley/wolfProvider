@@ -43,8 +43,7 @@ jobs:
           make check
 
       - name: Print errors
-        if: steps.cache.outputs.cache-hit != 'true'
-        if: ${{ failure() }}
+        if: steps.cache.outputs.cache-hit != 'true' && ${{ failure() }}
         run: |
           if [ -f test-suite.log ] ; then
             cat test-suite.log
