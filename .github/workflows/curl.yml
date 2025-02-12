@@ -12,9 +12,6 @@ concurrency:
   cancel-in-progress: true
 # END OF COMMON SECTION
 
-env:
-  wolfssl_refs_list: [ 'master', 'v5.7.4-stable' ]
-
 jobs:
   build_wolfprovider:
     name: Build wolfProvider
@@ -22,7 +19,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       matrix:
-        wolfssl_ref: ${{ wolfssl_refs_list }}
+        wolfssl_ref: [ 'master', 'v5.7.4-stable' ]
     steps:
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
@@ -72,7 +69,7 @@ jobs:
     strategy:
       matrix:
         curl_ref: [ 'master', 'curl-8_4_0' ]
-        wolfssl_ref: ${{ wolfssl_refs_list }}
+        wolfssl_ref: [ 'master', 'v5.7.4-stable' ]
     steps:
       - name: Checking for OpenSSL in cache
         uses: actions/cache/restore@v4
