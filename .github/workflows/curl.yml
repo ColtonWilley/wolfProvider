@@ -12,16 +12,36 @@ concurrency:
   cancel-in-progress: true
 # END OF COMMON SECTION
 
+env:
+  wolfssl_refs_list: ['master', 'v5.7.4-stable']
+
 jobs:
   build_wolfprovider:
     name: Build wolfProvider
     runs-on: ubuntu-22.04
     timeout-minutes: 20
+    strategy:
+      matrix:
+        wolfssl_ref: ${{ wolfssl_refs_list }}
     steps:
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
 
+      - name: Checking wolfSSL/wolfProvider in cache
+        uses: actions/cache@v4
+        id: wolfprov-${{ wolfssl_ref }}-cache
+        with:
+          path: |
+            wolfssl-source
+            wolfssl-install
+            wolfprov-install
+            provider.conf
+
+          key: wolfprov-${{ wolfssl_ref }}-${{ github.sha }}
+          lookup-only: true
+
       - name: Checking OpenSSL in cache
+        if: steps.wolfprov-${{ wolfssl_ref }}-cache.hit != 'true'
         uses: actions/cache@v4
         id: openssl-cache
         with:
@@ -31,24 +51,9 @@ jobs:
 
           key: ossl-depends
 
-      - name: Checking wolfSSL in cache
-        uses: actions/cache@v4
-        id: wolfprov-cache
-        with:
-          path: |
-            wolfssl-source
-            wolfssl-install
-            wolfprov-install
-            provider.conf
-
-          key: wolfprov-depends-${{ github.sha }}
-
       - name: Build wolfProvider
+        if: steps.wolfprov-${{ wolfssl_ref }}-cache.hit != 'true'
         run: |
-          echo "before 1"
-          pwd
-          ls
-          echo "after 1"
           WOLFSSL_TAG=master ./scripts/build-wolfprovider.sh
           make check
 
@@ -66,7 +71,8 @@ jobs:
     timeout-minutes: 20
     strategy:
       matrix:
-        curl_ref: [ 'master', 'curl-8_4_0' ]
+        curl_ref: [ 'master', 'curl-8_4_0' ],
+        wolfssl_ref: ${{ wolfssl_refs_list }}
     steps:
       - name: Checking for OpenSSL in cache
         uses: actions/cache/restore@v4
@@ -79,7 +85,7 @@ jobs:
           key: ossl-depends
           fail-on-cache-miss: true
 
-      - name: Checking for wolfSSL in cache
+      - name: Checking for wolfSSL/wolfProvider in cache
         uses: actions/cache/restore@v4
         id: wolfprov-cache
         with:
@@ -89,7 +95,7 @@ jobs:
             wolfprov-install
             provider.conf
 
-          key: wolfprov-depends-${{ github.sha }}
+          key: wolfprov-${{ wolfssl_ref }}-${{ github.sha }}
           fail-on-cache-miss: true
 
       - name: Install curl test dependencies
