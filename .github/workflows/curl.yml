@@ -36,7 +36,7 @@ jobs:
             wolfssl-source
             wolfssl-install
 
-          key: wolfssl-depends-${{ github.ref }}
+          key: wolfssl-depends-${{ github.sha }}
           lookup-only: true
 
       - name: Checkout wolfProvider
@@ -46,6 +46,9 @@ jobs:
       - name: Build wolfProvider
         if: steps.openssl-cache.outputs.cache-hit != 'true' || steps.wolfssl-cache.outputs.cache-hit != 'true'
         run: |
+          echo "before 0"
+          ls
+          echo "after 0"
           WOLFSSL_TAG=master ./scripts/build-wolfprovider.sh
           make check
 
@@ -84,7 +87,7 @@ jobs:
             wolfssl-source
             wolfssl-install
 
-          key: wolfssl-depends-${{ github.ref }}
+          key: wolfssl-depends-${{ github.sha }}
           fail-on-cache-miss: true
 
       - name: Checkout wolfProvider
@@ -92,6 +95,9 @@ jobs:
 
       - name: Build wolfProvider
         run: |
+          echo "before 1"
+          ls
+          echo "after 1"
           WOLFSSL_TAG=master ./scripts/build-wolfprovider.sh
           make check
 
