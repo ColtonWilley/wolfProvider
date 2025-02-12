@@ -27,7 +27,6 @@ jobs:
             openssl-install
 
           key: ossl-depends
-          lookup-only: true
 
       - name: Checking wolfSSL in cache
         uses: actions/cache@v4
@@ -37,7 +36,7 @@ jobs:
             wolfssl-source
             wolfssl-install
 
-          key: wolfssl-depends-${{ github.run_id }}
+          key: wolfssl-depends-${{ github.ref }}
           lookup-only: true
 
       - name: Checkout wolfProvider
@@ -85,7 +84,7 @@ jobs:
             wolfssl-source
             wolfssl-install
 
-          key: wolfssl-depends-${{ github.run_id }}
+          key: wolfssl-depends-${{ github.ref }}
           fail-on-cache-miss: true
 
       - name: Checkout wolfProvider
