@@ -26,7 +26,7 @@ jobs:
 
       - name: Checking wolfSSL/wolfProvider in cache
         uses: actions/cache@v4
-        id: wolfprov-${{ wolfssl_ref }}-cache
+        id: wolfprov-${{ matrix.wolfssl_ref }}-cache
         with:
           path: |
             wolfssl-source
@@ -34,11 +34,11 @@ jobs:
             wolfprov-install
             provider.conf
 
-          key: wolfprov-${{ wolfssl_ref }}-${{ github.sha }}
+          key: wolfprov-${{ matrix.wolfssl_ref }}-${{ github.sha }}
           lookup-only: true
 
       - name: Checking OpenSSL in cache
-        if: steps.wolfprov-${{ wolfssl_ref }}-cache.hit != 'true'
+        if: steps.wolfprov-${{ matrix.wolfssl_ref }}-cache.hit != 'true'
         uses: actions/cache@v4
         id: openssl-cache
         with:
@@ -49,7 +49,7 @@ jobs:
           key: ossl-depends
 
       - name: Build wolfProvider
-        if: steps.wolfprov-${{ wolfssl_ref }}-cache.hit != 'true'
+        if: steps.wolfprov-${{ matrix.wolfssl_ref }}-cache.hit != 'true'
         run: |
           WOLFSSL_TAG=master ./scripts/build-wolfprovider.sh
           make check
@@ -69,7 +69,7 @@ jobs:
     strategy:
       matrix:
         curl_ref: [ 'master', 'curl-8_4_0' ]
-        wolfssl_ref: ['master', 'v5.7.4-stable']
+        wolfssl_ref: [ 'master', 'v5.7.4-stable' ]
     steps:
       - name: Checking for OpenSSL in cache
         uses: actions/cache/restore@v4
@@ -92,7 +92,7 @@ jobs:
             wolfprov-install
             provider.conf
 
-          key: wolfprov-${{ wolfssl_ref }}-${{ github.sha }}
+          key: wolfprov-${{ matrix.wolfssl_ref }}-${{ github.sha }}
           fail-on-cache-miss: true
 
       - name: Install curl test dependencies
