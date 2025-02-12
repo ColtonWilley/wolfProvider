@@ -18,6 +18,9 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     steps:
+      - name: Checkout wolfProvider
+        uses: actions/checkout@v4
+
       - name: Checking OpenSSL in cache
         uses: actions/cache@v4
         id: openssl-cache
@@ -30,28 +33,17 @@ jobs:
 
       - name: Checking wolfSSL in cache
         uses: actions/cache@v4
-        id: wolfssl-cache
+        id: wolfprov-cache
         with:
           path: |
             wolfssl-source
             wolfssl-install
+            wolfprov-install
+            provider.conf
 
-          key: wolfssl-depends-${{ github.sha }}
-          lookup-only: true
-
-      - name: Test step
-        run: |
-          echo "before 0"
-          pwd
-          ls
-          echo "after 0"
-
-      - name: Checkout wolfProvider
-        if: steps.openssl-cache.outputs.cache-hit != 'true' || steps.wolfssl-cache.outputs.cache-hit != 'true'
-        uses: actions/checkout@v4
+          key: wolfprov-depends-${{ github.sha }}
 
       - name: Build wolfProvider
-        if: steps.openssl-cache.outputs.cache-hit != 'true' || steps.wolfssl-cache.outputs.cache-hit != 'true'
         run: |
           echo "before 1"
           pwd
@@ -89,26 +81,16 @@ jobs:
 
       - name: Checking for wolfSSL in cache
         uses: actions/cache/restore@v4
-        id: wolfssl-cache
+        id: wolfprov-cache
         with:
           path: |
             wolfssl-source
             wolfssl-install
+            wolfprov-install
+            provider.conf
 
-          key: wolfssl-depends-${{ github.sha }}
+          key: wolfprov-depends-${{ github.sha }}
           fail-on-cache-miss: true
-
-      - name: Checkout wolfProvider
-        uses: actions/checkout@v4
-
-      - name: Build wolfProvider
-        run: |
-          echo "before 2"
-          pwd
-          ls
-          echo "after 2"
-          WOLFSSL_TAG=master ./scripts/build-wolfprovider.sh
-          make check
 
       - name: Install curl test dependencies
         run: |
