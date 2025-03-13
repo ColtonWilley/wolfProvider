@@ -1599,16 +1599,22 @@ static int wp_ecc_gen_set_params(wp_EccGenCtx* ctx, const OSSL_PARAM params[])
         ok = 0;
     }
     if (ok) {
-        p = OSSL_PARAM_locate_const(params,
-                OSSL_PKEY_PARAM_EC_ENCODING);
-        if ((p != NULL) && ((p->data_type != OSSL_PARAM_UTF8_STRING) ||
-                            (p->data_size != \
-                              WP_EC_ENCODING_NAMED_CURVE_STR_LEN) ||
-                            (XMEMCMP(p->data, WP_EC_ENCODING_NAMED_CURVE_STR,
-                                p->data_size) != 0))) {
-            WOLFPROV_ERROR_MSG(WP_LOG_PK,
-                "only named curve encoding supported");
-            ok = 0;
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_EC_ENCODING);
+        if (p != NULL) {
+            if (p->data_type != OSSL_PARAM_UTF8_STRING) {
+                ok = 0;
+            }
+            else if (p->data_size != WP_EC_ENCODING_NAMED_CURVE_STR_LEN) {
+                ok = 0;
+            }
+            else if (XMEMCMP(p->data, WP_EC_ENCODING_NAMED_CURVE_STR,
+                        p->data_size) != 0) {
+                ok = 0;
+            }
+            if (!ok) {
+                WOLFPROV_ERROR_MSG(WP_LOG_PK,
+                    "only named curve encoding supported");
+            }
         }
     }
 
