@@ -217,6 +217,8 @@ int wp_params_get_digest(const OSSL_PARAM* params, char* name,
     int ok = 1;
     const char* mdName = NULL;
 
+    fprintf(stderr, "wp_params_get_digest called\n");
+
     if (!wp_params_get_utf8_string_ptr(params, OSSL_ALG_PARAM_DIGEST,
             &mdName)) {
         ok = 0;
@@ -229,11 +231,14 @@ int wp_params_get_digest(const OSSL_PARAM* params, char* name,
         }
         if (ok && (type != NULL) && (!wp_params_get_utf8_string_ptr(params,
                     OSSL_ALG_PARAM_PROPERTIES, &mdProps))) {
+            fprintf(stderr, "wp_params_get_digest err 0\n");
+                
             ok = 0;
         }
         if (ok && (type != NULL)) {
             *type = wp_name_to_wc_hash_type(libCtx, mdName, mdProps);
             if (*type == WC_HASH_TYPE_NONE) {
+                fprintf(stderr, "wp_params_get_digest err 1\n");
                 ok = 0;
             }
             if (ok && (len != NULL)) {
