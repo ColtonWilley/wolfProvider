@@ -237,8 +237,15 @@ static int wp_kdf_tls1_prf_get_seed(wp_Tls1Prf_Ctx* ctx,
 static void dumpParams(const OSSL_PARAM *p)
 {
     fprintf(stderr, "dumping params...\n");
-    while (p != NULL) {
-        fprintf(stderr, "key: %s\n", p->key);
+    while (p && p->key) {
+        fprintf(stderr, "key: %s ", p->key);
+        fprintf(stderr, " data: ");
+        if (p->data) {
+            for (size_t i = 0; i < p->data_size; i++) {
+                fprintf(stderr, "%c", ((char *)p->data)[i]);
+            }
+        }
+        fprintf(stderr, "\n");
         p++;
     }
     fprintf(stderr, "DONE dumping params\n");
