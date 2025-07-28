@@ -233,6 +233,17 @@ static int wp_kdf_tls1_prf_get_seed(wp_Tls1Prf_Ctx* ctx,
     WOLFPROV_LEAVE(WP_LOG_KDF, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
     return ok;
 }
+
+static void dumpParams(const OSSL_PARAM *p)
+{
+    fprintf(stderr, "dumping params...\n");
+    while (p != NULL) {
+        fprintf(stderr, "key: %s\n", p->key);
+        p++;
+    }
+    fprintf(stderr, "DONE dumping params\n");
+}
+
 /**
  * Set the parameters into the TLS1 PRF context object.
  *
@@ -245,6 +256,9 @@ static int wp_kdf_tls1_prf_set_ctx_params(wp_Tls1Prf_Ctx* ctx,
     const OSSL_PARAM params[])
 {
     int ok = 1;
+
+    fprintf(stderr, "wp_kdf_tls1_prf_set_ctx_params, dumping params...\n");
+    dumpParams(params);
 
     if (params != NULL) {
         if (!wp_params_get_digest(params, NULL, ctx->provCtx->libCtx,

@@ -236,6 +236,7 @@ int wp_params_get_digest(const OSSL_PARAM* params, char* name,
             ok = 0;
         }
         if (ok && (type != NULL)) {
+            fprintf(stderr, "wp_params_get_digest, checking libctx: %p mdname: %s\n", libCtx, mdName);
             *type = wp_name_to_wc_hash_type(libCtx, mdName, mdProps);
             if (*type == WC_HASH_TYPE_NONE) {
                 fprintf(stderr, "wp_params_get_digest err 1\n");
