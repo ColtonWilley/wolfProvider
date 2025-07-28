@@ -59,6 +59,11 @@ AC_DEFUN([AX_CHECK_WOLFSSL], [
                     WOLFSSL_LIBS=`$PKG_CONFIG wolfssl --libs-only-l 2>/dev/null`
                     WOLFSSL_INCLUDES=`$PKG_CONFIG wolfssl --cflags-only-I 2>/dev/null`
                     found=true
+                    AC_MSG_NOTICE([Found wolfSSL via pkg-config:])
+                    AC_MSG_NOTICE([  Install dir : $WOLFSSL_INSTALL_DIR])
+                    AC_MSG_NOTICE([  Includes    : $WOLFSSL_INCLUDES])
+                    AC_MSG_NOTICE([  Libraries   : $WOLFSSL_LIBS])
+                    AC_MSG_NOTICE([  LDFLAGS     : $WOLFSSL_LDFLAGS])
                 fi
             fi
 
@@ -88,6 +93,12 @@ AC_DEFUN([AX_CHECK_WOLFSSL], [
 
                 found=true
                 AC_MSG_RESULT([yes])
+                AC_MSG_NOTICE([Found wolfSSL in directory search:])
+                AC_MSG_NOTICE([  Install dir : $WOLFSSL_INSTALL_DIR])
+                AC_MSG_NOTICE([  Includes    : $WOLFSSL_INCLUDES])
+                AC_MSG_NOTICE([  Libraries   : $WOLFSSL_LIBS])
+                AC_MSG_NOTICE([  LDFLAGS     : $WOLFSSL_LDFLAGS])
+                AC_MSG_NOTICE([  Version     : $WOLFSSL_VERSION (decimal: $WOLFSSL_VERSION_DEC)])
                 break
             else
                 AC_MSG_RESULT([no])
