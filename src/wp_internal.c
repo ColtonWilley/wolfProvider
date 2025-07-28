@@ -180,7 +180,13 @@ enum wc_HashType wp_name_to_wc_hash_type(OSSL_LIB_CTX* libCtx, const char* name,
     enum wc_HashType ret = WC_HASH_TYPE_NONE;
 
     EVP_MD* md = EVP_MD_fetch(libCtx, name, propQ);
+    fprintf(stderr, "wp_name_to_wc_hash_type, name: %s, md: %p\n", name, md);
     if (md != NULL) {
+        /* Get the provider name using the provider API */
+        const OSSL_PROVIDER* prov = EVP_MD_get0_provider(md);
+        if (prov != NULL) {
+            fprintf(stderr, "wp_name_to_wc_hash_type, provider name: %s\n", OSSL_PROVIDER_get0_name(prov));
+        }
         ret = wp_nid_to_wc_hash_type(EVP_MD_type(md));
         EVP_MD_free(md);
     }
