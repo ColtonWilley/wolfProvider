@@ -267,6 +267,12 @@ static int wp_kdf_tls1_prf_set_ctx_params(wp_Tls1Prf_Ctx* ctx,
     fprintf(stderr, "wp_kdf_tls1_prf_set_ctx_params, dumping params...\n");
     dumpParams(params);
 
+#ifdef WP_HAVE_MD5_SHA1
+    fprintf(stderr, "wp_kdf_tls1_prf_set_ctx_params, have wp md5 sha1\n");
+#else
+    fprintf(stderr, "wp_kdf_tls1_prf_set_ctx_params, DO NOT have wp md5 sha1\n");
+#endif
+
     if (params != NULL) {
         if (!wp_params_get_digest(params, NULL, ctx->provCtx->libCtx,
                 &ctx->mdType, NULL)) {
