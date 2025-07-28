@@ -1,6 +1,6 @@
 /* wp_ecdsa_sig.c
  *
- * Copyright (C) 2006-2024 wolfSSL Inc.
+ * Copyright (C) 2006-2025 wolfSSL Inc.
  *
  * This file is part of wolfProvider.
  *
@@ -428,6 +428,8 @@ static int wp_ecdsa_setup_md(wp_EcdsaSigCtx *ctx, const char *mdName,
 {
     int ok = 1;
 
+    (void)op;
+
     if (mdProps == NULL) {
         mdProps = ctx->propQuery;
     }
@@ -447,6 +449,7 @@ static int wp_ecdsa_setup_md(wp_EcdsaSigCtx *ctx, const char *mdName,
         {
             ok = 0;
         }
+#ifdef HAVE_FIPS
 #if LIBWOLFSSL_VERSION_HEX >= 0x05007004
         if ((ctx->hash.type == WC_HASH_TYPE_SHA) && (op == EVP_PKEY_OP_SIGN))
 #else
@@ -455,6 +458,7 @@ static int wp_ecdsa_setup_md(wp_EcdsaSigCtx *ctx, const char *mdName,
         {
             ok = 0;
         }
+#endif
 
         if (ok) {
 #if LIBWOLFSSL_VERSION_HEX >= 0x05007004
