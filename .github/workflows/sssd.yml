@@ -13,37 +13,75 @@ concurrency:
 # END OF COMMON SECTION
 
 jobs:
+  build_wolfprovider:
+    uses: ./.github/workflows/build-wolfprovider.yml
+    with:
+      wolfssl_ref: ${{ matrix.wolfssl_ref }}
+      openssl_ref: ${{ matrix.openssl_ref }}
+      replace_default: ${{ matrix.replace_default }}
+    strategy:
+      matrix:
+        wolfssl_ref: [ 'v5.8.2-stable' ]
+        openssl_ref: [ 'openssl-3.5.2' ]
+        replace_default: [ true ]
+
   test_sssd:
     runs-on: ubuntu-22.04
-    timeout-minutes: 20
     container:
-      image: quay.io/sssd/ci-client-devel:ubuntu-latest
+      image: debian:bookworm
       env:
-        LD_LIBRARY_PATH: /usr/local/lib:/github/home/wolfssl-install/lib:/github/home/openssl-install/lib64
+        DEBIAN_FRONTEND: noninteractive
+    needs: build_wolfprovider
+    timeout-minutes: 20
+    env:
+      WOLFSSL_PACKAGES_PATH: /tmp/wolfssl-packages
+      OPENSSL_PACKAGES_PATH: /tmp/openssl-packages
+      WOLFPROV_PACKAGES_PATH: /tmp/wolfprov-packages
     strategy:
       fail-fast: false
       matrix:
-        sssd_ref: [ 'master', '2.9.1' ]
-        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
-        openssl_ref: [ 'openssl-3.5.0' ]
+        sssd_ref: [ '2.9.1' ]
+        wolfssl_ref: [ 'v5.8.2-stable' ]
+        openssl_ref: [ 'openssl-3.5.2' ]
         force_fail: ['WOLFPROV_FORCE_FAIL=1', '']
-        exclude:
-          - sssd_ref: 'master'
-            force_fail: 'WOLFPROV_FORCE_FAIL=1'
+        replace_default: [ true ]
     steps:
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Build wolfProvider
+      - name: Checking OpenSSL/wolfProvider packages in cache
+        uses: actions/cache/restore@v4
+        id: wolfprov-cache
+        with:
+          path: |
+            ${{ env.WOLFSSL_PACKAGES_PATH }}
+            ${{ env.OPENSSL_PACKAGES_PATH }}
+            ${{ env.WOLFPROV_PACKAGES_PATH }}
+          key: openssl-wolfprov-debian-packages-${{ github.sha }}${{ matrix.replace_default && '-replace-default' || '' }}
+          fail-on-cache-miss: true
+
+      - name: Install wolfSSL/OpenSSL/wolfprov packages
         run: |
-          OPENSSL_TAG=${{ matrix.openssl_ref }} WOLFSSL_TAG=${{ matrix.wolfssl_ref }} ./scripts/build-wolfprovider.sh
+          printf "Installing OpenSSL/wolfProvider packages:\n"
+          ls -la ${{ env.WOLFSSL_PACKAGES_PATH }}
+          ls -la ${{ env.OPENSSL_PACKAGES_PATH }}
+          ls -la ${{ env.WOLFPROV_PACKAGES_PATH }}
+
+          apt install --reinstall -y \
+            ${{ env.WOLFSSL_PACKAGES_PATH }}/libwolfssl_*.deb
+
+          apt install --reinstall -y \
+            ${{ env.OPENSSL_PACKAGES_PATH }}/openssl_*.deb \
+            ${{ env.OPENSSL_PACKAGES_PATH }}/libssl3_*.deb \
+            ${{ env.OPENSSL_PACKAGES_PATH }}/libssl-dev_*.deb
+
+          apt install --reinstall -y \
+            ${{ env.WOLFPROV_PACKAGES_PATH }}/libwolfprov_*.deb
 
       - name: Install dependencies
         run: |
-          # Don't prompt for anything
-          export DEBIAN_FRONTEND=noninteractive
           apt-get update
           apt-get install -y build-essential autoconf libldb-dev \
           libldb2 python3-ldb bc libcap-dev libutf8proc-dev
@@ -83,14 +121,13 @@ jobs:
         working-directory: sssd
         shell: bash
         run: |
-          # Set environment variables
-          export LD_LIBRARY_PATH=$GITHUB_WORKSPACE/wolfssl-install/lib:$GITHUB_WORKSPACE/openssl-install/lib64
+          # Set environment variables for packaged wolfProvider
           export OPENSSL_CONF=$GITHUB_WORKSPACE/provider.conf
-          export OPENSSL_MODULES=$GITHUB_WORKSPACE/wolfprov-install/lib
+          export OPENSSL_MODULES=/usr/lib/x86_64-linux-gnu/ossl-modules
           export ${{ matrix.force_fail }}
 
           echo "Checking OpenSSL providers:"
-          $GITHUB_WORKSPACE/openssl-install/bin/openssl list -providers | tee provider-list.log
+          openssl list -providers | tee provider-list.log
           grep -q libwolfprov provider-list.log || (echo "ERROR: libwolfprov not found in OpenSSL providers" && exit 1)
 
           # If force fail is enabled dont exit with error
