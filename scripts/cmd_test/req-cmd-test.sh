@@ -63,7 +63,7 @@ test_cert_creation() {
     # Create certificate with specified provider
     echo "Creating self-signed certificate with ${hash_alg} using ${req_provider_name}..."
     if $OPENSSL_BIN req -x509 -new -key "$key_file" -${hash_alg} -days 365 \
-        -out "$cert_file" -subj "/CN=test-${curve}-${hash_alg}" ${req_provider_args} 2>/dev/null; then
+        -out "$cert_file" -subj "/CN=test-${curve}-${hash_alg}" ${req_provider_args}; then
         echo "[PASS] Certificate creation successful"
         # Only call check_force_fail for wolfProvider operations, or when not in force fail mode
         if [[ "$req_provider_args" == *"libwolfprov"* ]] || [ "${WOLFPROV_FORCE_FAIL}" != "1" ]; then
