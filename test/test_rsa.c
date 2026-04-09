@@ -19,6 +19,7 @@
  */
 
 #include "unit.h"
+#include <wolfprovider/internal.h>
 #include <wolfprovider/wp_fips.h>
 #include <wolfssl/wolfcrypt/asn.h>
 
@@ -2085,6 +2086,50 @@ int test_rsa_encode_pkcs8(void* data)
                 sizeof(rsa_pss_key_der_2048_pkcs8_512));
     }
 
+    return err;
+}
+
+static int test_pw_cb(char* pass, size_t sz, size_t* len,
+    const OSSL_PARAM* p, void* arg)
+{
+    (void)p;
+    *len = strlen((char*)arg);
+    if (*len > sz) return 0;
+    memcpy(pass, arg, *len);
+    return 1;
+}
+
+int test_rsa_encrypt_pem_cipherinfo_comma(void* data)
+{
+    int err = 0;
+    WOLFPROV_CTX provCtx;
+    unsigned char keyBuf[sizeof(rsa_key_der_2048_pkcs8) + AES_BLOCK_SIZE];
+    byte* cipherInfo = NULL;
+    size_t keyLen = ((sizeof(rsa_key_der_2048_pkcs8) + AES_BLOCK_SIZE - 1) /
+        AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
+
+    (void)data;
+
+    memset(&provCtx, 0, sizeof(provCtx));
+    err = wc_InitRng(&provCtx.rng) != 0;
+#ifndef WP_SINGLE_THREADED
+    if (err == 0)
+        err = wc_InitMutex(&provCtx.rng_mutex) != 0;
+#endif
+    if (err == 0) {
+        memcpy(keyBuf, rsa_key_der_2048_pkcs8, sizeof(rsa_key_der_2048_pkcs8));
+        err = !wp_encrypt_key(&provCtx, "AES-256-CBC", keyBuf, &keyLen,
+            sizeof(rsa_key_der_2048_pkcs8), test_pw_cb, (void*)"test",
+            &cipherInfo);
+    }
+    if (err == 0)
+        err = strstr((char*)cipherInfo, "AES-256-CBC,") != (char*)cipherInfo;
+
+    OPENSSL_free(cipherInfo);
+#ifndef WP_SINGLE_THREADED
+    wc_FreeMutex(&provCtx.rng_mutex);
+#endif
+    wc_FreeRng(&provCtx.rng);
     return err;
 }
 

@@ -279,6 +279,7 @@ int test_rsa_load_cert(void* data);
 int test_rsa_fromdata(void* data);
 int test_rsa_decode_pkcs8(void* data);
 int test_rsa_encode_pkcs8(void* data);
+int test_rsa_encrypt_pem_cipherinfo_comma(void* data);
 int test_rsa_null_init(void* data);
 #endif /* WP_HAVE_RSA */
 

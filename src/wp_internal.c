@@ -986,7 +986,7 @@ int wp_encrypt_key(WOLFPROV_CTX* provCtx, const char* cipherName,
         cipherInfoSz -= idx;
         XSTRNCAT((char*)*cipherInfo, ",", cipherInfoSz);
         cipherInfoSz--;
-        rc = Base16_Encode(info->iv, info->ivSz, *cipherInfo + idx,
+        rc = Base16_Encode(info->iv, info->ivSz, *cipherInfo + idx + 1,
             &cipherInfoSz);
         if (rc != 0) {
             WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "Base16_Encode", rc);
@@ -1230,4 +1230,3 @@ byte wp_ct_byte_mask_sel(byte mask, byte a, byte b)
 {
     return (byte)((mask & a) | (~mask & b));
 }
-
