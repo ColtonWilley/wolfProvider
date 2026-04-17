@@ -990,6 +990,36 @@ static int test_pkey_verify_ecc(EVP_PKEY *pkey, OSSL_LIB_CTX* libCtx,
     return test_pkey_verify(pkey, libCtx, hash, hashLen, sig, sigLen, 0, NULL, NULL);
 }
 
+/* As test_pkey_verify_ecc, but sets signature_md before verifying. */
+static int test_pkey_verify_ecc_md(EVP_PKEY *pkey, OSSL_LIB_CTX* libCtx,
+    const EVP_MD *md, unsigned char *hash, size_t hashLen,
+    unsigned char *sig, size_t sigLen)
+{
+    int err;
+    EVP_PKEY_CTX *ctx = NULL;
+
+    err = (ctx = EVP_PKEY_CTX_new_from_pkey(libCtx, pkey, NULL)) == NULL;
+    if (err == 0) {
+        err = EVP_PKEY_verify_init(ctx) != 1;
+    }
+    if (err == 0) {
+        err = EVP_PKEY_CTX_set_signature_md(ctx, md) <= 0;
+    }
+    if (err == 0) {
+        err = EVP_PKEY_verify(ctx, sig, sigLen, hash, hashLen) != 1;
+    }
+    if (err == 0) {
+        PRINT_MSG("Signature verified");
+    }
+    else {
+        PRINT_MSG("Signature not verified");
+    }
+
+    EVP_PKEY_CTX_free(ctx);
+
+    return err;
+}
+
 #ifdef WP_HAVE_EC_P192
 int test_ecdsa_p192_pkey(void *data)
 {
@@ -1159,6 +1189,94 @@ int test_ecdsa_p256_pkey(void *data)
         PRINT_MSG("Verify with OpenSSL");
         err = test_pkey_verify_ecc(pkey, osslLibCtx, buf, sizeof(buf),
                                    ecdsaSig, ecdsaSigLen);
+    }
+
+    EVP_PKEY_free(pkey);
+
+    return err;
+}
+
+/* Raw EVP_PKEY_verify must reject sub-SHA-1 inputs. */
+int test_ecdsa_verify_undersized_hash(void *data)
+{
+    static const size_t sizes[]      = { 0, 19, 20, 32 };
+    static const int    expectFail[] = { 1,  1,  0,  0 };
+    int err;
+    size_t i;
+    EVP_PKEY *pkey = NULL;
+    unsigned char ecdsaSig[80];
+    size_t ecdsaSigLen;
+    unsigned char buf[32];
+    const unsigned char *p = ecc_key_der_256;
+
+    (void)data;
+
+    err = RAND_bytes(buf, sizeof(buf)) == 0;
+    if (err == 0) {
+        pkey = d2i_PrivateKey(EVP_PKEY_EC, NULL, &p, sizeof(ecc_key_der_256));
+        err = pkey == NULL;
+    }
+
+    for (i = 0; (err == 0) && (i < sizeof(sizes)/sizeof(sizes[0])); i++) {
+        PRINT_MSG("verify tbsLen=%zu", sizes[i]);
+        ecdsaSigLen = sizeof(ecdsaSig);
+        err = test_pkey_sign_ecc(pkey, osslLibCtx, buf, sizes[i], ecdsaSig,
+                                 &ecdsaSigLen);
+        if (err == 0) {
+            int verifyErr = test_pkey_verify_ecc(pkey, wpLibCtx, buf, sizes[i],
+                                                 ecdsaSig, ecdsaSigLen);
+            err = (verifyErr != 0) != expectFail[i];
+        }
+    }
+
+    /* Same minimum applies on the sign side: wolfProvider must refuse to
+     * produce a raw signature it would later refuse to verify. */
+    for (i = 0; (err == 0) && (i < sizeof(sizes)/sizeof(sizes[0])); i++) {
+        int signErr;
+        PRINT_MSG("sign tbsLen=%zu", sizes[i]);
+        ecdsaSigLen = sizeof(ecdsaSig);
+        signErr = test_pkey_sign_ecc(pkey, wpLibCtx, buf, sizes[i], ecdsaSig,
+                                     &ecdsaSigLen);
+        err = (signErr != 0) != expectFail[i];
+    }
+
+    EVP_PKEY_free(pkey);
+
+    return err;
+}
+
+/* EVP_PKEY_verify with signature_md=SHA-256 must require tbsLen == 32. */
+int test_ecdsa_verify_md_len_mismatch(void *data)
+{
+    static const size_t sizes[]      = { 19, 31, 32, 33 };
+    static const int    expectFail[] = {  1,  1,  0,  1 };
+    int err;
+    size_t i;
+    EVP_PKEY *pkey = NULL;
+    unsigned char ecdsaSig[80];
+    size_t ecdsaSigLen;
+    unsigned char buf[64];
+    const unsigned char *p = ecc_key_der_256;
+
+    (void)data;
+
+    err = RAND_bytes(buf, sizeof(buf)) == 0;
+    if (err == 0) {
+        pkey = d2i_PrivateKey(EVP_PKEY_EC, NULL, &p, sizeof(ecc_key_der_256));
+        err = pkey == NULL;
+    }
+
+    for (i = 0; (err == 0) && (i < sizeof(sizes)/sizeof(sizes[0])); i++) {
+        PRINT_MSG("tbsLen=%zu", sizes[i]);
+        ecdsaSigLen = sizeof(ecdsaSig);
+        err = test_pkey_sign_ecc(pkey, osslLibCtx, buf, sizes[i], ecdsaSig,
+                                 &ecdsaSigLen);
+        if (err == 0) {
+            int verifyErr = test_pkey_verify_ecc_md(pkey, wpLibCtx, EVP_sha256(),
+                                                    buf, sizes[i], ecdsaSig,
+                                                    ecdsaSigLen);
+            err = (verifyErr != 0) != expectFail[i];
+        }
     }
 
     EVP_PKEY_free(pkey);
