@@ -24,6 +24,13 @@
 #include <openssl/core_names.h>
 #include <openssl/param_build.h>
 
+#include <wolfssl/wolfcrypt/hash.h>
+
+/* Mirror the fallback used in src/wp_ecdsa_sig.c for wolfSSL < v5.9.1. */
+#ifndef WC_MIN_DIGEST_SIZE
+#define WC_MIN_DIGEST_SIZE 20
+#endif
+
 #ifdef WP_HAVE_ECC
 
 #if defined(WP_HAVE_ECDSA) || defined(WP_HAVE_ECDH)
@@ -1196,17 +1203,23 @@ int test_ecdsa_p256_pkey(void *data)
     return err;
 }
 
-/* Raw EVP_PKEY_verify must reject sub-SHA-1 inputs. */
+/* Raw EVP_PKEY_verify must reject inputs below WC_MIN_DIGEST_SIZE. */
 int test_ecdsa_verify_undersized_hash(void *data)
 {
-    static const size_t sizes[]      = { 0, 19, 20, 32 };
-    static const int    expectFail[] = { 1,  1,  0,  0 };
+    /* Boundaries track WC_MIN_DIGEST_SIZE so the assertions stay valid for
+     * whatever hash set the wolfSSL build enabled (typically 20 for SHA-1,
+     * but 16 when MD5 is on or 28+ in FIPS 186-5 builds). */
+    static const size_t sizes[]      = { 0,
+                                         WC_MIN_DIGEST_SIZE - 1,
+                                         WC_MIN_DIGEST_SIZE,
+                                         WC_MAX_DIGEST_SIZE };
+    static const int    expectFail[] = { 1, 1, 0, 0 };
     int err;
     size_t i;
     EVP_PKEY *pkey = NULL;
     unsigned char ecdsaSig[80];
     size_t ecdsaSigLen;
-    unsigned char buf[32];
+    unsigned char buf[WC_MAX_DIGEST_SIZE];
     const unsigned char *p = ecc_key_der_256;
 
     (void)data;
