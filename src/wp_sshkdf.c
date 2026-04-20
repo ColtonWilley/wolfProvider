@@ -347,10 +347,7 @@ static int wp_kdf_sshkdf_derive(wp_SshkdfCtx* ctx, unsigned char* key,
          * its own mpint encoding internally, so strip the caller's encoding
          * to avoid double-encoding. */
         if (rawKeySz >= 4) {
-            word32 mpintLen = ((word32)rawKey[0] << 24) |
-                              ((word32)rawKey[1] << 16) |
-                              ((word32)rawKey[2] << 8)  |
-                              (word32)rawKey[3];
+            word32 mpintLen = wp_atoc32(rawKey);
             if (mpintLen + 4 == rawKeySz && mpintLen > 0) {
                 rawKey += 4;
                 rawKeySz -= 4;

@@ -249,4 +249,7 @@ byte wp_ct_int_mask_eq(int a, int b);
 byte wp_ct_int_mask_lt(int a, int b);
 byte wp_ct_byte_mask_sel(byte mask, byte a, byte b);
 
+void   wp_c32toa(word32 wc_u32, byte* c);
+word32 wp_atoc32(const byte* c);
+
 #endif /* WP_INTERNAL_H */

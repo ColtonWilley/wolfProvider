@@ -252,6 +252,50 @@ static int test_sshkdf_vector(void)
     PRINT_MSG("PASSED SSHKDF SHA-512");
 #endif
 
+    /* Canonical padded mpint K: leading 0x00 sign-extension pad followed by
+     * an MSB-set value byte. Length prefix = 0x21 = 33, encoding 1 pad byte
+     * plus 32 value bytes. Interoperability and regression coverage for
+     * canonical padded mpint input: confirms wolfProvider matches OpenSSL on
+     * this input shape and exercises wp_atoc32 on a realistic mpint length
+     * prefix via the derive path. Note: this does not uniquely prove the
+     * inner 0x00-pad strip branch executed, since wc_SSH_KDF re-pads
+     * internally when the first value byte has its MSB set; both
+     * "strip-then-re-pad" and "do-not-strip" paths feed identical bytes into
+     * the hash and therefore agree with OpenSSL on this shape. */
+    {
+        unsigned char inKeyMsb[] = {
+            0x00, 0x00, 0x00, 0x21,
+            0x00,
+            0x80, 0xba, 0xe9, 0x31, 0xc0, 0x7f, 0xd8, 0x24,
+            0xbf, 0x10, 0xad, 0xd1, 0x90, 0x2b, 0x6f, 0xbc,
+            0x7c, 0x66, 0x4b, 0xf2, 0xd7, 0x51, 0x0f, 0x88,
+            0x9e, 0x2c, 0x31, 0xe7, 0xf5, 0x6a, 0x9b, 0x74
+        };
+
+        PRINT_MSG("Testing SSHKDF with SHA-256 type 'A' - MSB-set K (padded mpint)");
+        err = test_sshkdf_calc(osslLibCtx, oKey, 32, "SHA-256",
+            inKeyMsb, sizeof(inKeyMsb), xcghash, sizeof(xcghash),
+            sessionId, sizeof(sessionId), "A");
+        if (err != 0) {
+            PRINT_MSG("FAILED OpenSSL SSHKDF MSB-set K");
+            return err;
+        }
+        err = test_sshkdf_calc(wpLibCtx, wKey, 32, "SHA-256",
+            inKeyMsb, sizeof(inKeyMsb), xcghash, sizeof(xcghash),
+            sessionId, sizeof(sessionId), "A");
+        if (err != 0) {
+            PRINT_MSG("FAILED wolfProvider SSHKDF MSB-set K");
+            return err;
+        }
+        if (memcmp(oKey, wKey, 32) != 0) {
+            PRINT_MSG("FAILED, wolfProvider and OpenSSL derived different keys for MSB-set K");
+            PRINT_BUFFER("OpenSSL key", oKey, 32);
+            PRINT_BUFFER("wolfProvider key", wKey, 32);
+            return 1;
+        }
+        PRINT_MSG("PASSED SSHKDF MSB-set K");
+    }
+
     return err;
 }
 

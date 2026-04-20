@@ -1231,3 +1231,32 @@ byte wp_ct_byte_mask_sel(byte mask, byte a, byte b)
     return (byte)((mask & a) | (~mask & b));
 }
 
+/* Big-endian word32 <-> byte[4] conversions shared across KDF sources.
+ * We are not guaranteed to have these available from wolfssl, so implement
+ * them here. Consumed by SSHKDF (mpint length decode) and KBKDF
+ * (counter / length encode). */
+
+void wp_c32toa(word32 wc_u32, byte* c) {
+#ifdef WOLFSSL_USE_ALIGN
+    c[0] = (byte)((wc_u32 >> 24) & 0xff);
+    c[1] = (byte)((wc_u32 >> 16) & 0xff);
+    c[2] = (byte)((wc_u32 >>  8) & 0xff);
+    c[3] = (byte) (wc_u32 &        0xff);
+#elif defined(LITTLE_ENDIAN_ORDER)
+    *(word32*)c = ByteReverseWord32(wc_u32);
+#else
+    *(word32*)c = wc_u32;
+#endif
+}
+
+word32 wp_atoc32(const byte* c) {
+#ifdef WOLFSSL_USE_ALIGN
+    return ((word32)c[0] << 24) | ((word32)c[1] << 16)
+         | ((word32)c[2] <<  8) |  (word32)c[3];
+#elif defined(LITTLE_ENDIAN_ORDER)
+    return ByteReverseWord32(*(const word32*)c);
+#else
+    return *(const word32*)c;
+#endif
+}
+
