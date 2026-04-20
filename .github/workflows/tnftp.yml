@@ -73,6 +73,11 @@ jobs:
           apt install --reinstall -y --allow-downgrades --allow-change-held-packages \
             ${{ env.WOLFPROV_PACKAGES_PATH }}/libwolfprov_*.deb
 
+          # Prevent later 'apt-get install' of test dependencies from
+          # replacing the wolfprov-patched libssl3, which breaks 
+          # replace-default mode.
+          apt-mark hold libssl3 libssl-dev openssl libwolfssl libwolfprov
+
       - name: Verify wolfProvider is properly installed
         run: |
           $GITHUB_WORKSPACE/scripts/verify-install.sh \
@@ -87,9 +92,18 @@ jobs:
 
       - name: Download and extract tnftp
         run: |
-          wget http://ftp.netbsd.org/pub/NetBSD/misc/tnftp/${{ matrix.tnftp_ref }}.tar.gz
-          tar xvf ${{ matrix.tnftp_ref }}.tar.gz
-          cd ${{ matrix.tnftp_ref }}
+          # Fetch from the Debian source archive rather than ftp.netbsd.org
+          # or its CDN; both of those rate-limit or time-out requests from
+          # GitHub Actions egress. Debian mirrors the identical upstream
+          # tarball under a slightly different filename, and deb.debian.org
+          # is already the reliable source used by other workflows here.
+          # Translate 'tnftp-<date>' ref to Debian's 'tnftp_<date>.orig'.
+          ref="${{ matrix.tnftp_ref }}"
+          version="${ref#tnftp-}"
+          wget -4 "https://deb.debian.org/debian/pool/main/t/tnftp/tnftp_${version}.orig.tar.gz" \
+              -O "${ref}.tar.gz"
+          tar xvf ${ref}.tar.gz
+          cd ${ref}
 
       - name: Build and test tnftp
         working-directory: ${{ matrix.tnftp_ref }}

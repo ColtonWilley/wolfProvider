@@ -193,21 +193,28 @@ patch_openssl() {
             return 0
         fi
 
-        printf "\tApplying OpenSSL default provider patch ... "
+        printf "\tInstalling wolfProvider replace-default provider_predefined.c ... "
         pushd ${OPENSSL_SOURCE_DIR} &> /dev/null
 
-        # Check if patch is already applied
+        # Check if already in place
         if is_openssl_patched; then
             printf "Already applied.\n"
             popd &> /dev/null
             return 0
         fi
 
-        # Apply the patch
-        patch -p1 < ${SCRIPT_DIR}/../patches/openssl3-replace-default.patch >>$LOG_FILE 2>&1
+        # Drop-in replacement of crypto/provider_predefined.c. We used to
+        # apply a unified-diff patch here, but its context lines tracked
+        # trivial upstream whitespace reshuffles (e.g. '#ifdef' vs
+        # '# ifdef' around STATIC_LEGACY), making it break on every other
+        # openssl point release. The replacement file below is output-
+        # identical to what the old patch produced and is independent of
+        # which upstream version we started from.
+        cp ${SCRIPT_DIR}/../patches/provider_predefined.c.replace-default \
+            crypto/provider_predefined.c >>$LOG_FILE 2>&1
         if [ $? != 0 ]; then
             printf "ERROR.\n"
-            printf "\n\nPatch application failed. Last 40 lines of log:\n"
+            printf "\n\nReplacement copy failed. Last 40 lines of log:\n"
             tail -n 40 $LOG_FILE
             do_cleanup
             exit 1

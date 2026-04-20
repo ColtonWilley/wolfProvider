@@ -85,6 +85,11 @@ jobs:
           apt install --reinstall -y --allow-downgrades --allow-change-held-packages \
             ${{ env.WOLFPROV_PACKAGES_PATH }}/libwolfprov_*.deb
 
+          # Prevent later 'apt-get install' of test dependencies from
+          # replacing the wolfprov-patched libssl3, which breaks 
+          # replace-default mode.
+          apt-mark hold libssl3 libssl-dev openssl libwolfssl libwolfprov
+
           # In standalone mode, use OPENSSL_CONF to enable wolfProvider.
           if [ "${{ matrix.replace_default }}" = "false" ]; then
             echo "Setting OPENSSL_CONF to /etc/ssl/openssl.cnf.d/wolfprovider.conf"
@@ -108,6 +113,11 @@ jobs:
 
       - name: Uninstall package and verify cleanup
         run: |
+          # libwolfprov was held earlier to prevent transitive libssl3
+          # upgrades from clobbering the wolfprov-patched libssl3. Release
+          # the hold here so apt-get is allowed to remove it.
+          apt-mark unhold libwolfprov || true
+
           # Uninstall the package
           apt-get remove -y libwolfprov
 

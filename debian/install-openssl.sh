@@ -28,19 +28,32 @@ openssl_clone() {
     local debian_version=${1:-bookworm}
 
     printf "\tDownloading OpenSSL from Debian for $debian_version\n"
-    # Check if "deb-src" is in the sources.list, which allows us to 
-    # grab the source from Debian.
-    if [ -f /etc/apt/sources.list ] && grep -q "deb-src" /etc/apt/sources.list; then
-        printf "\tDebian sources.list already contains deb-src\n"
-    else
-        printf "\tAdding deb-src to sources.list\n"
-        echo "deb-src http://deb.debian.org/debian ${debian_version} main" >> /etc/apt/sources.list
-        echo "deb-src http://deb.debian.org/debian-security ${debian_version}-security main" >> /etc/apt/sources.list
-        echo "deb-src http://deb.debian.org/debian ${debian_version}-updates main" >> /etc/apt/sources.list
-    fi
+    # Ensure deb-src is enabled for each of main, security, and updates.
+    # A single "deb-src" entry for main is not sufficient: without the
+    # security and updates pockets, 'apt-get source' resolves to the
+    # original release version (e.g. 3.0.18) instead of the latest
+    # security-patched source (e.g. 3.5.5), which quietly produces stale
+    # .debs whose runtime libssl gets clobbered by test-time apt upgrades.
+    touch /etc/apt/sources.list
+    add_deb_src() {
+        local line="$1"
+        if ! grep -Fqx "$line" /etc/apt/sources.list; then
+            printf "\tAdding: %s\n" "$line"
+            echo "$line" >> /etc/apt/sources.list
+        fi
+    }
+    add_deb_src "deb-src http://deb.debian.org/debian ${debian_version} main"
+    add_deb_src "deb-src http://deb.debian.org/debian-security ${debian_version}-security main"
+    add_deb_src "deb-src http://deb.debian.org/debian ${debian_version}-updates main"
 
     apt update
-    apt-get source -t ${debian_version} openssl
+    # No -t release pin: apt treats bookworm-security / bookworm-updates as
+    # distinct suites, so '-t bookworm' would exclude them even with their
+    # deb-src lines configured and always resolve to the original release
+    # version. Letting apt pick the highest available version across the
+    # configured suites selects the security-patched source (e.g. 3.0.19)
+    # when one exists.
+    apt-get source openssl
 
     openssl_dir=$(ls -td openssl-* | head -n 1)
     printf "OpenSSL source directory: $openssl_dir\n"
@@ -82,15 +95,23 @@ openssl_patch() {
     if openssl_is_patched; then
         printf "\tOpenSSL already patched\n"
     elif [ "$replace_default" = "1" ]; then
-        printf "\tApplying OpenSSL default provider patch ... "
+        printf "\tInstalling wolfProvider replace-default provider_predefined.c ... "
 
-        # Apply the patch
-        patch -p1 < ${REPO_ROOT}/patches/openssl3-replace-default.patch
+        # Drop-in replacement of crypto/provider_predefined.c. We used to
+        # apply a unified-diff patch here, but its context lines tracked
+        # trivial upstream whitespace reshuffles (e.g. '#ifdef' vs
+        # '# ifdef' around STATIC_LEGACY), making it break on every other
+        # openssl point release. The replacement file below is output-
+        # identical to what the old patch produced and is independent of
+        # which upstream version we started from.
+        cp ${REPO_ROOT}/patches/provider_predefined.c.replace-default \
+            crypto/provider_predefined.c
         if [ $? != 0 ]; then
             printf "ERROR.\n"
-            printf "\n\nPatch application failed.\n"
+            printf "\n\nReplacement copy failed.\n"
             exit 1
         fi
+        printf "Done.\n"
     fi
     # Patch the OpenSSL version with our metadata
     openssl_patch_version $replace_default
