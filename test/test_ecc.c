@@ -24,6 +24,13 @@
 #include <openssl/core_names.h>
 #include <openssl/param_build.h>
 
+#include <wolfssl/wolfcrypt/hash.h>
+
+/* Mirror the fallback used in src/wp_ecdsa_sig.c for wolfSSL < v5.9.1. */
+#ifndef WC_MIN_DIGEST_SIZE
+#define WC_MIN_DIGEST_SIZE 20
+#endif
+
 #ifdef WP_HAVE_ECC
 
 #if defined(WP_HAVE_ECDSA) || defined(WP_HAVE_ECDH)
@@ -851,6 +858,56 @@ static int test_ecdh(const unsigned char *privKey, size_t len,
     return err;
 }
 
+#ifdef WP_HAVE_EC_P256
+int test_ecdh_invalid_kdf_strings(void *data)
+{
+    int err = 0;
+    EVP_PKEY_CTX *ctx = NULL;
+    EVP_PKEY *key = NULL;
+    const unsigned char *p = ecc_key_der_256;
+    char *invalidKdfs[] = {
+        (char *)"X",
+        (char *)"X942",
+        (char *)"X942KDF",
+        (char *)"X942KDF-AS"
+    };
+    size_t i;
+
+    (void)data;
+
+    PRINT_MSG("Reject invalid ECDH KDF type strings");
+
+    key = d2i_PrivateKey_ex(EVP_PKEY_EC, NULL, &p, sizeof(ecc_key_der_256),
+        wpLibCtx, NULL);
+    err = key == NULL;
+    if (err == 0) {
+        ctx = EVP_PKEY_CTX_new_from_pkey(wpLibCtx, key, NULL);
+        err = ctx == NULL;
+    }
+    if (err == 0) {
+        err = EVP_PKEY_derive_init(ctx) != 1;
+    }
+    for (i = 0; (err == 0) && (i < (sizeof(invalidKdfs) / sizeof(*invalidKdfs)));
+            i++) {
+        OSSL_PARAM params[2];
+
+        params[0] = OSSL_PARAM_construct_utf8_string(
+            OSSL_EXCHANGE_PARAM_KDF_TYPE, invalidKdfs[i], 0);
+        params[1] = OSSL_PARAM_construct_end();
+
+        err = EVP_PKEY_CTX_set_params(ctx, params) > 0;
+        if (err != 0) {
+            PRINT_ERR_MSG("Accepted invalid ECDH KDF type: %s", invalidKdfs[i]);
+        }
+    }
+
+    EVP_PKEY_CTX_free(ctx);
+    EVP_PKEY_free(key);
+
+    return err;
+}
+#endif /* WP_HAVE_EC_P256 */
+
 #ifdef WP_HAVE_EC_P192
 int test_ecdh_p192(void *data)
 {
@@ -938,6 +995,36 @@ static int test_pkey_verify_ecc(EVP_PKEY *pkey, OSSL_LIB_CTX* libCtx,
     unsigned char *hash, size_t hashLen, unsigned char *sig, size_t sigLen)
 {
     return test_pkey_verify(pkey, libCtx, hash, hashLen, sig, sigLen, 0, NULL, NULL);
+}
+
+/* As test_pkey_verify_ecc, but sets signature_md before verifying. */
+static int test_pkey_verify_ecc_md(EVP_PKEY *pkey, OSSL_LIB_CTX* libCtx,
+    const EVP_MD *md, unsigned char *hash, size_t hashLen,
+    unsigned char *sig, size_t sigLen)
+{
+    int err;
+    EVP_PKEY_CTX *ctx = NULL;
+
+    err = (ctx = EVP_PKEY_CTX_new_from_pkey(libCtx, pkey, NULL)) == NULL;
+    if (err == 0) {
+        err = EVP_PKEY_verify_init(ctx) != 1;
+    }
+    if (err == 0) {
+        err = EVP_PKEY_CTX_set_signature_md(ctx, md) <= 0;
+    }
+    if (err == 0) {
+        err = EVP_PKEY_verify(ctx, sig, sigLen, hash, hashLen) != 1;
+    }
+    if (err == 0) {
+        PRINT_MSG("Signature verified");
+    }
+    else {
+        PRINT_MSG("Signature not verified");
+    }
+
+    EVP_PKEY_CTX_free(ctx);
+
+    return err;
 }
 
 #ifdef WP_HAVE_EC_P192
@@ -1109,6 +1196,100 @@ int test_ecdsa_p256_pkey(void *data)
         PRINT_MSG("Verify with OpenSSL");
         err = test_pkey_verify_ecc(pkey, osslLibCtx, buf, sizeof(buf),
                                    ecdsaSig, ecdsaSigLen);
+    }
+
+    EVP_PKEY_free(pkey);
+
+    return err;
+}
+
+/* Raw EVP_PKEY_verify must reject inputs below WC_MIN_DIGEST_SIZE. */
+int test_ecdsa_verify_undersized_hash(void *data)
+{
+    /* Boundaries track WC_MIN_DIGEST_SIZE so the assertions stay valid for
+     * whatever hash set the wolfSSL build enabled (typically 20 for SHA-1,
+     * but 16 when MD5 is on or 28+ in FIPS 186-5 builds). */
+    static const size_t sizes[]      = { 0,
+                                         WC_MIN_DIGEST_SIZE - 1,
+                                         WC_MIN_DIGEST_SIZE,
+                                         WC_MAX_DIGEST_SIZE };
+    static const int    expectFail[] = { 1, 1, 0, 0 };
+    int err;
+    size_t i;
+    EVP_PKEY *pkey = NULL;
+    unsigned char ecdsaSig[80];
+    size_t ecdsaSigLen;
+    unsigned char buf[WC_MAX_DIGEST_SIZE];
+    const unsigned char *p = ecc_key_der_256;
+
+    (void)data;
+
+    err = RAND_bytes(buf, sizeof(buf)) == 0;
+    if (err == 0) {
+        pkey = d2i_PrivateKey(EVP_PKEY_EC, NULL, &p, sizeof(ecc_key_der_256));
+        err = pkey == NULL;
+    }
+
+    for (i = 0; (err == 0) && (i < sizeof(sizes)/sizeof(sizes[0])); i++) {
+        PRINT_MSG("verify tbsLen=%zu", sizes[i]);
+        ecdsaSigLen = sizeof(ecdsaSig);
+        err = test_pkey_sign_ecc(pkey, osslLibCtx, buf, sizes[i], ecdsaSig,
+                                 &ecdsaSigLen);
+        if (err == 0) {
+            int verifyErr = test_pkey_verify_ecc(pkey, wpLibCtx, buf, sizes[i],
+                                                 ecdsaSig, ecdsaSigLen);
+            err = (verifyErr != 0) != expectFail[i];
+        }
+    }
+
+    /* Same minimum applies on the sign side: wolfProvider must refuse to
+     * produce a raw signature it would later refuse to verify. */
+    for (i = 0; (err == 0) && (i < sizeof(sizes)/sizeof(sizes[0])); i++) {
+        int signErr;
+        PRINT_MSG("sign tbsLen=%zu", sizes[i]);
+        ecdsaSigLen = sizeof(ecdsaSig);
+        signErr = test_pkey_sign_ecc(pkey, wpLibCtx, buf, sizes[i], ecdsaSig,
+                                     &ecdsaSigLen);
+        err = (signErr != 0) != expectFail[i];
+    }
+
+    EVP_PKEY_free(pkey);
+
+    return err;
+}
+
+/* EVP_PKEY_verify with signature_md=SHA-256 must require tbsLen == 32. */
+int test_ecdsa_verify_md_len_mismatch(void *data)
+{
+    static const size_t sizes[]      = { 19, 31, 32, 33 };
+    static const int    expectFail[] = {  1,  1,  0,  1 };
+    int err;
+    size_t i;
+    EVP_PKEY *pkey = NULL;
+    unsigned char ecdsaSig[80];
+    size_t ecdsaSigLen;
+    unsigned char buf[64];
+    const unsigned char *p = ecc_key_der_256;
+
+    (void)data;
+
+    err = RAND_bytes(buf, sizeof(buf)) == 0;
+    if (err == 0) {
+        pkey = d2i_PrivateKey(EVP_PKEY_EC, NULL, &p, sizeof(ecc_key_der_256));
+        err = pkey == NULL;
+    }
+
+    for (i = 0; (err == 0) && (i < sizeof(sizes)/sizeof(sizes[0])); i++) {
+        PRINT_MSG("tbsLen=%zu", sizes[i]);
+        ecdsaSigLen = sizeof(ecdsaSig);
+        err = test_pkey_sign_ecc(pkey, osslLibCtx, buf, sizes[i], ecdsaSig,
+                                 &ecdsaSigLen);
+        if (err == 0) {
+            int verifyErr = test_pkey_verify_ecc_md(pkey, wpLibCtx, EVP_sha256(),
+                                                    buf, sizes[i], ecdsaSig,
+                                                    ecdsaSigLen);
+            err = (verifyErr != 0) != expectFail[i];
+        }
     }
 
     EVP_PKEY_free(pkey);

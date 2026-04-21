@@ -87,6 +87,7 @@ typedef struct TEST_CASE {
 } TEST_CASE;
 
 int test_logging(void *data);
+int test_ct_masks(void *data);
 
 #define WP_VALGRIND_TEST 0x1
 
@@ -150,6 +151,7 @@ int test_sshkdf(void *data);
 #ifdef WP_HAVE_DES3CBC
 int test_des3_cbc(void *data);
 int test_des3_cbc_stream(void *data);
+int test_des3_cbc_bad_pad(void *data);
 #endif
 
 #ifdef WP_HAVE_AESECB
@@ -172,6 +174,7 @@ int test_aes128_cbc_stream(void *data);
 int test_aes192_cbc_stream(void *data);
 int test_aes256_cbc_stream(void *data);
 int test_aes256_cbc_multiple(void *data);
+int test_aes256_cbc_bad_pad(void *data);
 
 #endif
 
@@ -288,6 +291,7 @@ int test_rsa_null_init(void* data);
 #ifdef WP_HAVE_DH
 int test_dh_pgen_pkey(void *data);
 int test_dh_pkey(void *data);
+int test_dh_invalid_kdf_strings(void *data);
 int test_dh_decode(void *data);
 int test_dh_get_params(void *data);
 int test_dh_krb5_keygen(void *data);
@@ -364,6 +368,7 @@ int test_ecdh_p192(void *data);
 int test_ecdh_p224(void *data);
 #endif /* WP_HAVE_EC_P224 */
 #ifdef WP_HAVE_EC_P256
+int test_ecdh_invalid_kdf_strings(void *data);
 int test_ecdh_p256(void *data);
 #endif /* WP_HAVE_EC_P256 */
 #ifdef WP_HAVE_EC_P384
@@ -394,6 +399,8 @@ int test_ecdsa_p521_pkey(void *data);
 #ifdef WP_HAVE_EC_P256
 int test_ecdsa_p256_pkey(void *data);
 int test_ecdsa_p256(void *data);
+int test_ecdsa_verify_undersized_hash(void *data);
+int test_ecdsa_verify_md_len_mismatch(void *data);
 #endif /* WP_HAVE_EC_P256 */
 
 #ifdef WP_HAVE_EC_P384
@@ -438,6 +445,13 @@ int test_x509_cert(void *data);
     defined(WP_HAVE_ECDH) && defined(WP_HAVE_SHA384)
 int test_tls12_cbc(void *data);
 int test_tls12_cbc_ossl(void *data);
+int test_aes_tls_cbc_bad_pad(void *data);
+#endif
+
+#ifdef WP_HAVE_DES3CBC
+#if !defined(HAVE_FIPS) || defined(WP_ALLOW_NON_FIPS)
+int test_des3_tls_cbc_bad_pad(void *data);
+#endif
 #endif
 
 #endif /* UNIT_H */

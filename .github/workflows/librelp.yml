@@ -55,7 +55,8 @@ jobs:
         run: |
           apt-get update
           apt-get install -y git build-essential autoconf automake \
-            libtool pkg-config libgnutls28-dev net-tools iproute2 python3
+            libtool pkg-config libgnutls28-dev net-tools iproute2 python3 \
+            valgrind libtool-bin
 
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
@@ -80,6 +81,11 @@ jobs:
 
           apt install --reinstall -y \
             ${{ env.WOLFPROV_PACKAGES_PATH }}/libwolfprov_*.deb
+
+          # Prevent later 'apt-get install' of test dependencies from
+          # replacing the wolfprov-patched libssl3, which breaks 
+          # replace-default mode.
+          apt-mark hold libssl3 libssl-dev openssl libwolfssl libwolfprov
 
       - name: Verify wolfProvider is properly installed
         run: |

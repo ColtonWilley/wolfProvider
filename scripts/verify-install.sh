@@ -201,8 +201,10 @@ verify_wolfprovider() {
 
     detect_wolfprovider_mode
     dpkg_output=$(dpkg -l 2> /dev/null | grep wolf)
-    is_wolfssl_installed=$(echo "$dpkg_output" | grep -Eq '^ii\s+libwolfssl\s' && echo 1 || echo 0)
-    is_wolfssl_fips=$(echo "$dpkg_output" | grep -E '^ii\s+libwolfssl\s' | grep -qi "fips" && echo 1 || echo 0)
+    # Match any dpkg status whose second char is 'i' (installed state), so a
+    # package marked on hold ('hi') is still recognized as installed.
+    is_wolfssl_installed=$(echo "$dpkg_output" | grep -Eq '^[ih]i\s+libwolfssl\s' && echo 1 || echo 0)
+    is_wolfssl_fips=$(echo "$dpkg_output" | grep -E '^[ih]i\s+libwolfssl\s' | grep -qi "fips" && echo 1 || echo 0)
 
     if [ $VERBOSE -eq 1 ]; then
         echo "fips: $fips"

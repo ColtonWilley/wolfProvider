@@ -73,6 +73,11 @@ jobs:
         apt install --reinstall -y \
           ${{ env.WOLFPROV_PACKAGES_PATH }}/libwolfprov_*.deb
 
+          # Prevent later 'apt-get install' of test dependencies from
+          # replacing the wolfprov-patched libssl3, which breaks 
+          # replace-default mode.
+          apt-mark hold libssl3 libssl-dev openssl libwolfssl libwolfprov
+
     - name: Verify wolfProvider is properly installed
       run: |
         $GITHUB_WORKSPACE/scripts/verify-install.sh \

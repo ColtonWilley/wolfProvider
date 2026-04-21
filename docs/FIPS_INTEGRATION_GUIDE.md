@@ -157,8 +157,9 @@ For more control, build each component directly using autotools—the core build
 git clone --depth=1 -b openssl-3.5.0 https://github.com/openssl/openssl.git
 cd openssl
 
-# Apply replace-default patch (recommended for FIPS)
-patch -p1 < /path/to/wolfProvider/patches/openssl3-replace-default.patch
+# Install the replace-default provider_predefined.c (recommended for FIPS)
+cp /path/to/wolfProvider/patches/provider_predefined.c.replace-default \
+    crypto/provider_predefined.c
 
 ./config shared --prefix=/usr/local/openssl no-external-tests no-tests
 make -j$(nproc)

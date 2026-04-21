@@ -171,6 +171,7 @@ static unsigned long flags = 0;
 
 TEST_CASE test_case[] = {
     TEST_DECL(test_logging, &debug),
+    TEST_DECL(test_ct_masks, NULL),
 #ifdef WP_HAVE_SHA1
     TEST_DECL(test_sha, NULL),
 #endif
@@ -230,6 +231,7 @@ TEST_CASE test_case[] = {
     #if !defined(HAVE_FIPS) || defined(WP_ALLOW_NON_FIPS)
         TEST_DECL(test_des3_cbc, NULL),
         TEST_DECL(test_des3_cbc_stream, NULL),
+        TEST_DECL(test_des3_cbc_bad_pad, NULL),
     #endif
 #endif
 #ifdef WP_HAVE_AESECB
@@ -248,6 +250,7 @@ TEST_CASE test_case[] = {
     TEST_DECL(test_aes192_cbc_stream, NULL),
     TEST_DECL(test_aes256_cbc_stream, NULL),
     TEST_DECL(test_aes256_cbc_multiple, NULL),
+    TEST_DECL(test_aes256_cbc_bad_pad, NULL),
 #endif
 #ifdef WP_HAVE_AESCTR
     TEST_DECL(test_aes128_ctr_stream, NULL),
@@ -288,6 +291,7 @@ TEST_CASE test_case[] = {
 #ifdef WP_HAVE_DH
     TEST_DECL(test_dh_pgen_pkey, NULL),
     TEST_DECL(test_dh_pkey, NULL),
+    TEST_DECL(test_dh_invalid_kdf_strings, NULL),
     TEST_DECL(test_dh_decode, NULL),
     TEST_DECL(test_dh_krb5_keygen, NULL),
 #ifndef WOLFPROV_QUICKTEST
@@ -355,11 +359,14 @@ TEST_CASE test_case[] = {
     #ifdef WP_HAVE_ECKEYGEN
         TEST_DECL(test_ecdh_p256_keygen, NULL),
     #endif
+        TEST_DECL(test_ecdh_invalid_kdf_strings, NULL),
         TEST_DECL(test_ecdh_p256, NULL),
     #endif
     #ifdef WP_HAVE_ECDSA
         TEST_DECL(test_ecdsa_p256_pkey, NULL),
         TEST_DECL(test_ecdsa_p256, NULL),
+        TEST_DECL(test_ecdsa_verify_undersized_hash, NULL),
+        TEST_DECL(test_ecdsa_verify_md_len_mismatch, NULL),
     #endif
     TEST_DECL(test_ec_decode, NULL),
     TEST_DECL(test_ec_import, NULL),
@@ -447,6 +454,12 @@ TEST_CASE test_case[] = {
     defined(WP_HAVE_ECDH) && defined(WP_HAVE_SHA384)
     TEST_DECL(test_tls12_cbc_ossl, NULL),
     TEST_DECL(test_tls12_cbc, NULL),
+    TEST_DECL(test_aes_tls_cbc_bad_pad, NULL),
+#endif
+#ifdef WP_HAVE_DES3CBC
+    #if !defined(HAVE_FIPS) || defined(WP_ALLOW_NON_FIPS)
+        TEST_DECL(test_des3_tls_cbc_bad_pad, NULL),
+    #endif
 #endif
 };
 #define TEST_CASE_CNT   (int)(sizeof(test_case) / sizeof(*test_case))

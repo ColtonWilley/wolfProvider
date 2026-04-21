@@ -32,6 +32,13 @@
 
 #ifdef WP_HAVE_ECDSA
 
+/* WC_MIN_DIGEST_SIZE was introduced in wolfSSL v5.9.1. Fall back to the
+ * SHA-1 digest size on older releases so the raw-ECDSA minimum matches the
+ * behavior FIPS 186-4 requires. */
+#ifndef WC_MIN_DIGEST_SIZE
+#define WC_MIN_DIGEST_SIZE 20
+#endif
+
 /**
  * ECDSA signature context.
  *
@@ -271,14 +278,20 @@ static int wp_ecdsa_sign(wp_EcdsaSigCtx *ctx, unsigned char *sig,
         *sigLen = wc_ecc_sig_size(wp_ecc_get_key(ctx->ecc));
     }
     else {
+        /* Enforce digest-size invariants the FIPS-validated
+         * wc_ecc_sign_hash boundary cannot. */
 #if LIBWOLFSSL_VERSION_HEX >= 0x05007004
-        if ((ctx->hash.type != WC_HASH_TYPE_NONE) &&
-            (tbsLen != (size_t)wc_HashGetDigestSize(ctx->hash.type)))
+        enum wc_HashType hashType = ctx->hash.type;
 #else
-        if ((ctx->hashType != WC_HASH_TYPE_NONE) &&
-            (tbsLen != (size_t)wc_HashGetDigestSize(ctx->hashType)))
+        enum wc_HashType hashType = ctx->hashType;
 #endif
-        {
+        int digestSize = wc_HashGetDigestSize(hashType);
+        if ((hashType != WC_HASH_TYPE_NONE) &&
+            ((digestSize < 0) || (tbsLen != (size_t)digestSize))) {
+            ok = 0;
+        }
+        else if ((hashType == WC_HASH_TYPE_NONE) &&
+                 (tbsLen < WC_MIN_DIGEST_SIZE)) {
             ok = 0;
         }
         else if ((ok = wp_ecc_check_usage(ctx->ecc))) {
@@ -362,16 +375,34 @@ static int wp_ecdsa_verify(wp_EcdsaSigCtx *ctx, const unsigned char *sig,
         ok = 0;
     }
     else {
-        int res;
-        int rc = wc_ecc_verify_hash(sig, (word32)sigLen, tbs, (word32)tbsLen,
-            &res, wp_ecc_get_key(ctx->ecc));
-        if (rc != 0) {
-            WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "wc_ecc_verify_hash", rc);
+        /* Enforce digest-size invariants the FIPS-validated
+         * wc_ecc_verify_hash boundary cannot. */
+#if LIBWOLFSSL_VERSION_HEX >= 0x05007004
+        enum wc_HashType hashType = ctx->hash.type;
+#else
+        enum wc_HashType hashType = ctx->hashType;
+#endif
+        int digestSize = wc_HashGetDigestSize(hashType);
+        if ((hashType != WC_HASH_TYPE_NONE) &&
+            ((digestSize < 0) || (tbsLen != (size_t)digestSize))) {
             ok = 0;
         }
-        if (res == 0) {
-            WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "Signature verification", rc);
+        else if ((hashType == WC_HASH_TYPE_NONE) &&
+                 (tbsLen < WC_MIN_DIGEST_SIZE)) {
             ok = 0;
+        }
+        else {
+            int res;
+            int rc = wc_ecc_verify_hash(sig, (word32)sigLen, tbs, (word32)tbsLen,
+                &res, wp_ecc_get_key(ctx->ecc));
+            if (rc != 0) {
+                WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "wc_ecc_verify_hash", rc);
+                ok = 0;
+            }
+            else if (res == 0) {
+                WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "Signature verification", rc);
+                ok = 0;
+            }
         }
     }
 
