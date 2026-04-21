@@ -354,21 +354,6 @@ static const OSSL_PARAM* wp_kdf_kbkdf_gettable_ctx_params(wp_KbkdfCtx* ctx,
     return wp_kbkdf_supported_gettable_ctx_params;
 }
 
-/* We are not guaranteed to have these available from wolfssl, so implement
- * them here */
-static void wp_c32toa(word32 wc_u32, byte* c) {
-#ifdef WOLFSSL_USE_ALIGN
-    c[0] = (byte)((wc_u32 >> 24) & 0xff);
-    c[1] = (byte)((wc_u32 >> 16) & 0xff);
-    c[2] = (byte)((wc_u32 >>  8) & 0xff);
-    c[3] = (byte) (wc_u32 &        0xff);
-#elif defined(LITTLE_ENDIAN_ORDER)
-    *(word32*)c = ByteReverseWord32(wc_u32);
-#else
-    *(word32*)c = wc_u32;
-#endif
-}
-
 #ifdef WP_HAVE_HMAC
 #define WP_MAX_HASH_BLOCK_SIZE 128
 
