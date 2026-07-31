@@ -23,6 +23,20 @@ EXTRA_DIST+=patches
 EXTRA_DIST+=provider.conf
 EXTRA_DIST+=provider-fips.conf
 
+# EXTRA_DIST+=IDE above copies the IDE tree into the tarball RECURSIVELY, and it
+# is not .gitignore-aware. The Visual Studio project (IDE/WINVS) writes its build
+# output inside the repo -- OutDir is $(SolutionDir)$(Configuration)\$(Platform)\,
+# following wolfSSL's own convention -- so anyone who builds in-tree on Windows
+# and then runs `make dist` would silently ship .dll/.obj/.lib/.pdb to customers.
+#
+# Strip it here rather than relying on the working tree happening to be clean.
+dist-hook:
+	rm -rf $(distdir)/IDE/WINVS/Release $(distdir)/IDE/WINVS/Debug
+	rm -rf $(distdir)/IDE/WINVS/.vs
+	find $(distdir)/IDE -type f \( -name '*.user' -o -name '*.VC.db' \
+	    -o -name '*.VC.opendb' -o -name '*.obj' -o -name '*.pdb' \
+	    -o -name '*.tlog' \) -delete
+
 include src/include.am
 include include/include.am
 include test/include.am

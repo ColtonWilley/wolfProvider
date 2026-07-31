@@ -48,6 +48,14 @@
 /** Ed448 for ECDSA. */
 #define WP_KEY_TYPE_ED448       4
 
+#if defined(WP_HAVE_X25519) && defined(WOLFSSL_CURVE25519_BLINDING)
+/* wolfSSL's blinded curve25519 implementation generates random values through
+ * an RNG that must be attached to the curve25519 key object. Applies to X25519
+ * only - X448, Ed25519 and Ed448 have no such requirement.
+ */
+#define WP_ECX_CURVE25519_RNG
+#endif
+
 /** Maximum key size. Used for exporting when comparing keys. */
 #ifdef WP_HAVE_ED448
 #define WP_MAX_KEY_SIZE         ED448_KEY_SIZE
@@ -151,6 +159,12 @@ struct wp_Ecx {
 
     /** Unclamped values to restore on export. */
     byte unclamped[2];
+
+#ifdef WP_ECX_CURVE25519_RNG
+    /** Random number generator for curve25519 blinding.
+     * Only initialized when the key type is X25519. */
+    WC_RNG rng;
+#endif
 
 #ifndef WP_SINGLE_THREADED
     /** Mutex for reference count updating. */
@@ -258,6 +272,36 @@ wolfSSL_Mutex* wp_ecx_get_mutex(wp_Ecx* ecx)
     return &ecx->mutex;
 }
 
+#ifdef WP_ECX_CURVE25519_RNG
+/**
+ * Attach this key object's RNG to the wolfSSL curve25519 key.
+ *
+ * Blinded curve25519 operations - including deriving the public key from the
+ * private key - take their random values from the RNG held in the key object,
+ * so one must be attached before the key is used. Not required for, and not
+ * applicable to, the other ECX key types.
+ *
+ * @param [in, out] ecx  ECX key object. Data field must be set.
+ * @return  1 on success.
+ * @return  0 on failure.
+ */
+static int wp_ecx_set_curve25519_rng(wp_Ecx* ecx)
+{
+    int ok = 1;
+
+    if (ecx->data->keyType == WP_KEY_TYPE_X25519) {
+        int rc = wc_curve25519_set_rng(&ecx->key.x25519, &ecx->rng);
+        if (rc != 0) {
+            WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG,
+                "wc_curve25519_set_rng", rc);
+            ok = 0;
+        }
+    }
+
+    return ok;
+}
+#endif /* WP_ECX_CURVE25519_RNG */
+
 /**
  * Create a new ECX key object. Base function.
  *
@@ -277,6 +321,8 @@ static wp_Ecx* wp_ecx_new(WOLFPROV_CTX* provCtx, const wp_EcxData* data)
         int ok = 1;
         int rc;
 
+        ecx->data = data;
+
         rc = (*data->initKey)((void*)&ecx->key);
         if (rc != 0) {
             WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "initKey", rc);
@@ -294,10 +340,30 @@ static wp_Ecx* wp_ecx_new(WOLFPROV_CTX* provCtx, const wp_EcxData* data)
         }
     #endif
 
+    #ifdef WP_ECX_CURVE25519_RNG
+        if (ok && (data->keyType == WP_KEY_TYPE_X25519)) {
+            /* RNG's tied to lifecycle of key in wolfSSL. */
+            rc = wc_InitRng(&ecx->rng);
+            if (rc != 0) {
+                WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "wc_InitRng", rc);
+                ok = 0;
+            }
+            else if (!wp_ecx_set_curve25519_rng(ecx)) {
+                wc_FreeRng(&ecx->rng);
+                ok = 0;
+            }
+            if (!ok) {
+            #ifndef WP_SINGLE_THREADED
+                wc_FreeMutex(&ecx->mutex);
+            #endif
+                (*data->freeKey)(&ecx->key);
+            }
+        }
+    #endif
+
         if (ok) {
             ecx->provCtx = provCtx;
             ecx->refCnt  = 1;
-            ecx->data    = data;
         }
 
         if (!ok) {
@@ -339,6 +405,11 @@ void wp_ecx_free(wp_Ecx* ecx)
         if (cnt == 0) {
     #ifndef WP_SINGLE_THREADED
             wc_FreeMutex(&ecx->mutex);
+    #endif
+    #ifdef WP_ECX_CURVE25519_RNG
+            if (ecx->data->keyType == WP_KEY_TYPE_X25519) {
+                wc_FreeRng(&ecx->rng);
+            }
     #endif
             (*ecx->data->freeKey)((void*)&ecx->key);
             /* unclamped holds 2 bytes of the original private key. */
@@ -400,6 +471,14 @@ static wp_Ecx* wp_ecx_dup(const wp_Ecx* src, int selection)
                 }
             }
         }
+    #ifdef WP_ECX_CURVE25519_RNG
+        /* Copying the key, and re-initializing it above, replaced the RNG
+         * attached by wp_ecx_new() - put this object's own RNG back. */
+        if (!wp_ecx_set_curve25519_rng(dst)) {
+            wp_ecx_free(dst);
+            dst = NULL;
+        }
+    #endif
     }
 
     return dst;
@@ -1361,6 +1440,15 @@ static wp_Ecx* wp_ecx_gen(wp_EcxGenCtx* ctx, OSSL_CALLBACK* osslcb, void* cbarg)
             wp_ecx_free(ecx);
             ecx = NULL;
         }
+#ifdef WP_ECX_CURVE25519_RNG
+        /* wc_curve25519_make_key() stores the generation context's RNG in the
+         * key. That RNG is freed with the context, so put the key's own RNG
+         * back. */
+        else if (!wp_ecx_set_curve25519_rng(ecx)) {
+            wp_ecx_free(ecx);
+            ecx = NULL;
+        }
+#endif
         else {
             ecx->hasPub = 1;
             ecx->hasPriv = 1;

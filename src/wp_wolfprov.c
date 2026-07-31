@@ -35,6 +35,8 @@
 #include "wolfprovider/alg_funcs.h"
 
 #include "wolfssl/wolfcrypt/logging.h"
+/* wolfCrypt_Init() / wolfCrypt_Cleanup() */
+#include "wolfssl/wolfcrypt/wc_port.h"
 
 #ifdef HAVE_FIPS
 #include <wolfssl/wolfcrypt/fips_test.h>
@@ -1352,6 +1354,14 @@ static const OSSL_ALGORITHM* wolfprov_query(void* provCtx, int id,
 static void wolfprov_teardown(void* provCtx)
 {
     wolfssl_prov_ctx_free(provCtx);
+
+    /* Release the wolfCrypt reference taken by wolfssl_provider_init(). Must
+     * come after wolfssl_prov_ctx_free(), which still calls into wolfCrypt
+     * (wc_FreeRng(), wc_FreeMutex()). wolfCrypt_Cleanup() is reference
+     * counted, so this only tears wolfCrypt down when no other user - a host
+     * application that initialized it itself, or a second provider context -
+     * still holds a reference. */
+    wolfCrypt_Cleanup();
 }
 
 /* Table of functions the core will invoke. */
@@ -1406,6 +1416,13 @@ int wolfssl_provider_init(const OSSL_CORE_HANDLE* handle,
 {
     int ok = 1;
     const OSSL_DISPATCH* origIn = in;
+    /* Set once wolfCrypt_Init() has succeeded, so the failure paths below know
+     * whether a wolfCrypt reference is outstanding and must be released. */
+    int wcInited = 0;
+    /* Provider context is published to *provCtx only on full success, so a
+     * partial failure can dispose of it here. */
+    WOLFPROV_CTX* newProvCtx = NULL;
+    int rc;
 
     wolfProv_LogInit();
 
@@ -1429,6 +1446,32 @@ int wolfssl_provider_init(const OSSL_CORE_HANDLE* handle,
 #ifdef HAVE_FIPS
     wolfCrypt_SetCb_fips(wp_fipsCb);
 #endif
+
+    if (ok) {
+        /* Initialize wolfCrypt before calling any other wolfCrypt API.
+         *
+         * This is not optional and it is not platform specific. Among other
+         * things wolfCrypt_Init() constructs wolfCrypt's internal static
+         * mutexes - the DRBG state mutex used by wc_InitRng() below being the
+         * one this provider reaches first. Those mutexes carry a static
+         * initializer only where wolfSSL_Mutex has one, i.e. under
+         * WOLFSSL_PTHREADS; on Windows a wolfSSL_Mutex is a CRITICAL_SECTION,
+         * which has no static initializer form, so the mutex stays zero filled
+         * and the first wc_LockMutex() on it faults. Linux merely gets away
+         * without this call; it is required everywhere, so no #ifdef here.
+         *
+         * wolfCrypt_Init() is idempotent and reference counted, so this is
+         * safe when the host application has already initialized wolfCrypt:
+         * it takes a reference and returns 0 without re-running init. */
+        rc = wolfCrypt_Init();
+        if (rc != 0) {
+            WOLFPROV_ERROR_FUNC(WP_LOG_COMP_PROVIDER, "wolfCrypt_Init", rc);
+            ok = 0;
+        }
+        else {
+            wcInited = 1;
+        }
+    }
 
 #ifdef WP_CHECK_FORCE_FAIL
     char *forceFailEnv = NULL;
@@ -1489,8 +1532,8 @@ int wolfssl_provider_init(const OSSL_CORE_HANDLE* handle,
 
     if (ok) {
         /* Create a new provider context. */
-        *provCtx = wolfssl_prov_ctx_new();
-        if (*provCtx == NULL) {
+        newProvCtx = wolfssl_prov_ctx_new();
+        if (newProvCtx == NULL) {
             ok = 0;
         }
     }
@@ -1498,13 +1541,34 @@ int wolfssl_provider_init(const OSSL_CORE_HANDLE* handle,
         /* Using the OSSL_FUNC_core_get_libctx can yield you an
          * uninitialized libctx in certain init flows. Instead create
          * a new child libctx. The child libctx being NULL is allowed. */
-        wolfssl_prov_ctx_set0_lib_ctx(*provCtx,
+        wolfssl_prov_ctx_set0_lib_ctx(newProvCtx,
             OSSL_LIB_CTX_new_child(handle, origIn));
         /* Cache the handle in provider context. */
-        wolfssl_prov_ctx_set0_handle(*provCtx, handle);
+        wolfssl_prov_ctx_set0_handle(newProvCtx, handle);
+
+        /* Publish the context and the dispatch table only now that everything
+         * has succeeded. */
+        *provCtx = newProvCtx;
 
         /* Return out dispatch table. */
         *out = wolfprov_dispatch_table;
+    }
+
+    if (!ok) {
+        /* The core does not call OSSL_FUNC_PROVIDER_TEARDOWN when a provider's
+         * init function returns failure, so everything acquired above has to be
+         * released here. In particular the wolfCrypt reference must go back:
+         * leaving it outstanding would keep wolfCrypt's reference count
+         * permanently elevated and turn a later, legitimate
+         * wolfCrypt_Cleanup() into a no-op. */
+        if (newProvCtx != NULL) {
+            wolfssl_prov_ctx_free(newProvCtx);
+            newProvCtx = NULL;
+        }
+        if (wcInited) {
+            wolfCrypt_Cleanup();
+            wcInited = 0;
+        }
     }
 
     WOLFPROV_LEAVE(WP_LOG_COMP_PROVIDER, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);

@@ -100,6 +100,17 @@ IDE/Android/wolfssl-source/
 IDE/Android/wolfssl-install/
 IDE/Android/wolfProvider/
 
+# Visual Studio build output. wolfprovider.vcxproj follows wolfSSL's own
+# convention of OutDir = $(SolutionDir)$(Configuration)\$(Platform)\, which puts
+# artifacts inside the repo. The checked-in files under IDE/WINVS/ are the
+# solution, property sheet, project, .def and user_settings.h -- nothing else.
+IDE/WINVS/Release/
+IDE/WINVS/Debug/
+IDE/WINVS/*.VC.db
+IDE/WINVS/*.VC.opendb
+IDE/WINVS/.vs/
+IDE/WINVS/**/*.user
+
 examples/openssl_example
 
 cscope.out
@@ -108,6 +119,9 @@ tags
 
 # Debian build files
 libwolfprov*.tar.gz
+# `make dist` names the tarball after the package, which is wolfprov, not
+# libwolfprov -- the pattern above never matched it.
+wolfprov-*.tar.gz
 debian/tmp
 debian/*.dch
 debian/autoreconf*

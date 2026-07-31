@@ -1,0 +1,17 @@
+; wolfProvider module exports.
+;
+; A provider module loaded by stock libcrypto needs exactly one symbol:
+; crypto/provider_core.c:1026-1027 does
+;     DSO_bind_func(prov->module, "OSSL_provider_init")
+; and that is the only name-based lookup performed against a provider
+; module. Exporting it from a .def keeps wolfProvider's sources free of
+; __declspec annotations (PORT-DESIGN Decision 5).
+;
+; No LIBRARY statement: it is optional, and a LIBRARY name that does not
+; match the linker's output name produces LNK4102. The output name is set
+; by <TargetName>libwolfprov</TargetName> in wolfprovider.vcxproj.
+;
+; Requires WP_NO_DYNAMIC_PROVIDER to be undefined -- it guards
+; OSSL_provider_init at src/wp_wolfprov.c:1514-1530.
+EXPORTS
+    OSSL_provider_init

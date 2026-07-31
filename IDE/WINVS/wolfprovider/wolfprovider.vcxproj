@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <!-- All 48 sources from src/include.am:6-53, in that order, unconditional,
+       and compiled in every configuration. 34 of them collapse to
+       declaration-only translation units in this configuration; that is
+       expected, and is why /IGNORE:4221 is on the link line. Do not exclude
+       them from any build: the source list must not become a function of the
+       configuration, or turning a feature macro on silently omits its
+       implementation and fails at link. PORT-DESIGN Decision 11, SPEC AC-2,
+       enforced by vm/windows/check-source-list.sh. -->
+  <ItemGroup>
+    <ClCompile Include="..\..\..\src\wp_wolfprov.c" />
+    <ClCompile Include="..\..\..\src\wp_tls_capa.c" />
+    <ClCompile Include="..\..\..\src\wp_digests.c" />
+    <ClCompile Include="..\..\..\src\wp_aes_block.c" />
+    <ClCompile Include="..\..\..\src\wp_aes_stream.c" />
+    <ClCompile Include="..\..\..\src\wp_aes_aead.c" />
+    <ClCompile Include="..\..\..\src\wp_aes_wrap.c" />
+    <ClCompile Include="..\..\..\src\wp_des.c" />
+    <ClCompile Include="..\..\..\src\wp_hmac.c" />
+    <ClCompile Include="..\..\..\src\wp_cmac.c" />
+    <ClCompile Include="..\..\..\src\wp_gmac.c" />
+    <ClCompile Include="..\..\..\src\wp_mac_kmgmt.c" />
+    <ClCompile Include="..\..\..\src\wp_mac_sig.c" />
+    <ClCompile Include="..\..\..\src\wp_hkdf.c" />
+    <ClCompile Include="..\..\..\src\wp_tls1_prf.c" />
+    <ClCompile Include="..\..\..\src\wp_kdf_kmgmt.c" />
+    <ClCompile Include="..\..\..\src\wp_kdf_exch.c" />
+    <ClCompile Include="..\..\..\src\wp_pbkdf2.c" />
+    <ClCompile Include="..\..\..\src\wp_kbkdf.c" />
+    <ClCompile Include="..\..\..\src\wp_krb5kdf.c" />
+    <ClCompile Include="..\..\..\src\wp_sshkdf.c" />
+    <ClCompile Include="..\..\..\src\wp_rsa_kmgmt.c" />
+    <ClCompile Include="..\..\..\src\wp_rsa_sig.c" />
+    <ClCompile Include="..\..\..\src\wp_rsa_asym.c" />
+    <ClCompile Include="..\..\..\src\wp_rsa_kem.c" />
+    <ClCompile Include="..\..\..\src\wp_ecc_kmgmt.c" />
+    <ClCompile Include="..\..\..\src\wp_ecdh_exch.c" />
+    <ClCompile Include="..\..\..\src\wp_ecdsa_sig.c" />
+    <ClCompile Include="..\..\..\src\wp_ecx_kmgmt.c" />
+    <ClCompile Include="..\..\..\src\wp_ecx_exch.c" />
+    <ClCompile Include="..\..\..\src\wp_ecx_sig.c" />
+    <ClCompile Include="..\..\..\src\wp_dh_kmgmt.c" />
+    <ClCompile Include="..\..\..\src\wp_dh_exch.c" />
+    <ClCompile Include="..\..\..\src\wp_mlkem_kmgmt.c" />
+    <ClCompile Include="..\..\..\src\wp_mlkem_kem.c" />
+    <ClCompile Include="..\..\..\src\wp_mlx_kmgmt.c" />
+    <ClCompile Include="..\..\..\src\wp_mlx_kem.c" />
+    <ClCompile Include="..\..\..\src\wp_mldsa_kmgmt.c" />
+    <ClCompile Include="..\..\..\src\wp_mldsa_sig.c" />
+    <ClCompile Include="..\..\..\src\wp_drbg.c" />
+    <ClCompile Include="..\..\..\src\wp_seed_src.c" />
+    <ClCompile Include="..\..\..\src\wp_dec_pem2der.c" />
+    <ClCompile Include="..\..\..\src\wp_dec_epki2pki.c" />
+    <ClCompile Include="..\..\..\src\wp_file_store.c" />
+    <ClCompile Include="..\..\..\src\wp_internal.c" />
+    <ClCompile Include="..\..\..\src\wp_params.c" />
+    <ClCompile Include="..\..\..\src\wp_logging.c" />
+    <ClCompile Include="..\..\..\src\wp_fips.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="wolfprovider.def" />
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{9B1F3C0A-6D48-4E27-8A55-C3E7D2140F6B}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>wolfprovider</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\wolfprovider.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\wolfprovider.props" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(SolutionDir)$(Configuration)\$(Platform)\</OutDir>
+    <IntDir>$(Configuration)\$(Platform)\$(ProjectName)_obj\</IntDir>
+    <!-- CRITICAL. MSBuild would otherwise default TargetName to the
+         project name and emit wolfprovider.dll. OpenSSL resolves
+         "-provider libwolfprov" to the file libwolfprov.dll:
+         win32_name_converter (dso_win32.c:442-462) appends .dll and adds
+         no "lib" prefix. Matches wolfprovider_id at src/wp_wolfprov.c:43.
+         PORT-DESIGN Decision 4; SPEC R7. -->
+    <TargetName>libwolfprov</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>$(SolutionDir)$(Configuration)\$(Platform)\</OutDir>
+    <IntDir>$(Configuration)\$(Platform)\$(ProjectName)_obj\</IntDir>
+    <!-- CRITICAL. MSBuild would otherwise default TargetName to the
+         project name and emit wolfprovider.dll. OpenSSL resolves
+         "-provider libwolfprov" to the file libwolfprov.dll:
+         win32_name_converter (dso_win32.c:442-462) appends .dll and adds
+         no "lib" prefix. Matches wolfprovider_id at src/wp_wolfprov.c:43.
+         PORT-DESIGN Decision 4; SPEC R7. -->
+    <TargetName>libwolfprov</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <LanguageStandard_C>stdc11</LanguageStandard_C>
+      <PreprocessorDefinitions>WOLFSSL_USER_SETTINGS;WOLFSSL_DLL;WIN32;_WINDOWS;NDEBUG;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..;..\..\..\include;$(wolfCryptDir);$(openSslDir)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <ModuleDefinitionFile>wolfprovider.def</ModuleDefinitionFile>
+      <AdditionalDependencies>libcrypto.lib;wolfssl.lib;ws2_32.lib;advapi32.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(openSslDir);$(wolfCryptDllRelease64);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>/IGNORE:4221 %(AdditionalOptions)</AdditionalOptions>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>Disabled</Optimization>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <LanguageStandard_C>stdc11</LanguageStandard_C>
+      <PreprocessorDefinitions>WOLFSSL_USER_SETTINGS;WOLFSSL_DLL;WIN32;_WINDOWS;_DEBUG;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..;..\..\..\include;$(wolfCryptDir);$(openSslDir)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <ModuleDefinitionFile>wolfprovider.def</ModuleDefinitionFile>
+      <AdditionalDependencies>libcrypto.lib;wolfssl.lib;ws2_32.lib;advapi32.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(openSslDir);$(wolfCryptDllDebug64);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>/IGNORE:4221 %(AdditionalOptions)</AdditionalOptions>
+    </Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

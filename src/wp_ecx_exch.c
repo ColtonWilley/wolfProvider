@@ -246,11 +246,25 @@ static int wp_x25519_derive(wp_EcxCtx* ctx, unsigned char* secret,
         word32 len = (word32)secSize;
         int i;
 
-        rc = wc_curve25519_shared_secret(wp_ecx_get_key(ctx->key),
-            wp_ecx_get_key(ctx->peer), secret, &len);
-        if (rc != 0) {
-            WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "wc_curve25519_shared_secret", rc);
+#ifdef WOLFSSL_CURVE25519_BLINDING
+        /* Blinding draws random values from the RNG in our key object, which
+         * is shared by every operation on that key - serialize on the key's
+         * mutex as the ECC and Ed25519 signing paths do. */
+        if (wp_lock(wp_ecx_get_mutex(ctx->key)) != 1) {
             ok = 0;
+        }
+        if (ok)
+#endif
+        {
+            rc = wc_curve25519_shared_secret(wp_ecx_get_key(ctx->key),
+                wp_ecx_get_key(ctx->peer), secret, &len);
+        #ifdef WOLFSSL_CURVE25519_BLINDING
+            wp_unlock(wp_ecx_get_mutex(ctx->key));
+        #endif
+            if (rc != 0) {
+                WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "wc_curve25519_shared_secret", rc);
+                ok = 0;
+            }
         }
         if (ok) {
             /* Constant-time: always subtract, then select based on

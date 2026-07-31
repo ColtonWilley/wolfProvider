@@ -25,7 +25,9 @@
     #include "user_settings.h"
 #endif
 
-#include <wolfssl/options.h>
+#ifndef WOLFSSL_USER_SETTINGS
+    #include <wolfssl/options.h>
+#endif
 
 enum wolfProvider_FipsCheck {
     /* check that RSA key size is valid */
