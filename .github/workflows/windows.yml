@@ -1,0 +1,157 @@
+name: Windows MSVC Build
+
+on:
+  workflow_call:
+    inputs:
+      wolfssl_ref:
+        description: "wolfSSL ref to build against; empty = latest stable"
+        required: false
+        type: string
+        default: ""
+  workflow_dispatch:
+    inputs:
+      wolfssl_ref:
+        description: "wolfSSL ref to build against; empty = latest stable"
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  discover_versions:
+    uses: ./.github/workflows/_discover-versions.yml
+
+  windows_msvc:
+    name: MSVC x64
+    needs: discover_versions
+    runs-on: windows-2025
+    timeout-minutes: 60
+    env:
+      # Pinned rather than discovered: OpenSSL is built from source here, so a
+      # moving tag would miss the cache on every upstream release.
+      OPENSSL_REF: openssl-3.5.4
+    steps:
+      # wolfProvider, wolfssl and openssl as siblings under the workspace is the
+      # layout wolfprovider.props already defaults to, so no /p: overrides.
+      - name: Checkout wolfProvider
+        uses: actions/checkout@v4
+        with:
+          path: wolfProvider
+          fetch-depth: 1
+
+      - name: Checkout wolfSSL
+        uses: actions/checkout@v4
+        with:
+          repository: wolfSSL/wolfssl
+          ref: ${{ inputs.wolfssl_ref != '' && inputs.wolfssl_ref || needs.discover_versions.outputs.wolfssl_latest_ref }}
+          path: wolfssl
+          fetch-depth: 1
+
+      - name: Restore OpenSSL
+        id: openssl_cache
+        uses: actions/cache@v4
+        with:
+          path: openssl
+          key: openssl-msvc-windows-2025-${{ env.OPENSSL_REF }}-${{ hashFiles('wolfProvider/.github/workflows/windows.yml') }}
+
+      # Builds in a scratch tree and stages only what the projects consume: the
+      # import libraries at the root of openSslDir, the public headers, and the
+      # DLLs the tests load. Caching the build tree itself would be ~2 GB.
+      - name: Build OpenSSL
+        if: steps.openssl_cache.outputs.cache-hit != 'true'
+        run: |
+          choco install --no-progress -y nasm jom
+          $env:PATH = "C:\Program Files\NASM;$env:PATH"
+
+          $src    = "$env:GITHUB_WORKSPACE\openssl-src"
+          $prefix = "$env:GITHUB_WORKSPACE\openssl-install"
+          $stage  = "$env:GITHUB_WORKSPACE\openssl"
+
+          # Through cmd: git writes progress to stderr on success, and the shell
+          # Actions gives us runs with $ErrorActionPreference = 'stop'.
+          cmd /c "git clone --depth 1 --branch $env:OPENSSL_REF https://github.com/openssl/openssl.git `"$src`" > nul 2>&1"
+          if ($LASTEXITCODE -ne 0) { throw "git clone failed (rc=$LASTEXITCODE)" }
+
+          # vcvars only sticks inside one cmd session, so the build is a batch file.
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+                  -products * -property installationPath
+          @(
+            '@echo off'
+            "call `"$vs\VC\Auxiliary\Build\vcvars64.bat`""
+            'if errorlevel 1 exit /b 1'
+            "cd /d `"$src`""
+            'if errorlevel 1 exit /b 1'
+            "perl Configure VC-WIN64A shared no-tests --prefix=`"$prefix`" --openssldir=`"$prefix\ssl`""
+            'if errorlevel 1 exit /b 1'
+            'rem Configure emits /Zi /Fdossl_static.pdb with no /FS, so parallel'
+            'rem cl.exe instances all fail C1041 on the shared PDB.'
+            'set CL=/FS'
+            'jom /J %NUMBER_OF_PROCESSORS%'
+            'if errorlevel 1 ('
+            '    echo JOM FAILED - falling back to serial nmake'
+            '    nmake'
+            ')'
+            'if errorlevel 1 exit /b 1'
+            'nmake install_sw'
+            'exit /b %errorlevel%'
+          ) | Set-Content "$env:GITHUB_WORKSPACE\build-openssl.bat" -Encoding Ascii
+          cmd /c "$env:GITHUB_WORKSPACE\build-openssl.bat"
+          if ($LASTEXITCODE -ne 0) { throw "OpenSSL build failed (rc=$LASTEXITCODE)" }
+
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item "$prefix\lib\libcrypto.lib","$prefix\lib\libssl.lib" $stage
+          Copy-Item "$prefix\include" $stage -Recurse
+          Copy-Item "$prefix\bin" $stage -Recurse
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      # wolfssl.vcxproj omits rng_bank.c, which WC_RNG_BANK_SUPPORT needs.
+      # ForceImportBeforeCppTargets contributes it during project evaluation, so
+      # the wolfSSL tree stays pristine.
+      - name: Prepare wolfSSL build
+        run: |
+          Copy-Item wolfProvider\IDE\WINVS\user_settings.h wolfssl\IDE\WIN\user_settings.h -Force
+          @(
+            '<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">'
+            '  <ItemGroup>'
+            '    <ClCompile Include="$(MSBuildProjectDirectory)\wolfcrypt\src\rng_bank.c" />'
+            '  </ItemGroup>'
+            '</Project>'
+          ) | Set-Content "$env:GITHUB_WORKSPACE\wolfssl-extra-sources.props" -Encoding Ascii
+
+      # The toolset override is what VS's "Retarget solution" does, minus the
+      # file edit: wolfssl.vcxproj declares v110 and no target platform version.
+      # ML carries the SP sizes because the project forwards no /D to ml64.
+      - name: Build wolfSSL
+        shell: cmd
+        env:
+          ML: /DWOLFSSL_SP_384 /DWOLFSSL_SP_521 /DWOLFSSL_SP_1024 /DWOLFSSL_SP_4096
+        run: >
+          msbuild wolfssl\wolfssl64.sln /t:wolfssl
+          /p:Configuration="DLL Release" /p:Platform=x64
+          /p:PlatformToolset=v143 /p:WindowsTargetPlatformVersion=10.0
+          /p:ForceImportBeforeCppTargets="%GITHUB_WORKSPACE%\wolfssl-extra-sources.props"
+          /m /v:minimal /nologo
+
+      - name: Build wolfProvider
+        shell: cmd
+        run: >
+          msbuild wolfProvider\IDE\WINVS\wolfprovider.sln
+          /p:Configuration="DLL Release" /p:Platform=x64 /m /v:minimal /nologo
+
+      # unit-test.exe exists only in the Static configurations:
+      # WP_UNIT_STATIC_PROVIDER lets it reach internals the DLL does not export.
+      - name: Build unit tests
+        shell: cmd
+        run: >
+          msbuild wolfProvider\IDE\WINVS\wolfprovider.sln
+          /p:Configuration="Static Release" /p:Platform=x64 /m /v:minimal /nologo
+
+      # OpenSSL loads providers with a bare LoadLibraryA, which does not search
+      # the loading module's directory, so wolfssl.dll goes on PATH rather than
+      # beside the binary.
+      - name: Run unit tests
+        shell: cmd
+        run: |
+          set "PATH=%GITHUB_WORKSPACE%\wolfssl\DLL Release\x64;%GITHUB_WORKSPACE%\openssl\bin;%PATH%"
+          "wolfProvider\IDE\WINVS\Static Release\x64\unit-test.exe"

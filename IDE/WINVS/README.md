@@ -150,4 +150,3 @@ Known limitations
 - SEED-SRC is not supported on Windows.
 - A `WOLFPROV_DEBUG` unit-test build does not compile; `test_logging.c` uses
   `setenv()`.
-- No automated Windows CI yet.

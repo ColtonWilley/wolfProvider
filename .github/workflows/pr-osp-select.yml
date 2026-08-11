@@ -227,3 +227,7 @@ jobs:
     needs: select
     if: contains(needs.select.outputs.run, ' all ') || contains(needs.select.outputs.run, ' perf ')
     uses: ./.github/workflows/perf-regression.yml
+  windows:
+    needs: select
+    if: contains(needs.select.outputs.run, ' all ') || contains(needs.select.outputs.run, ' windows ')
+    uses: ./.github/workflows/windows.yml

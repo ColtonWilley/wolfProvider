@@ -69,7 +69,7 @@ per-app workflows stay untouched.
 | Label | Effect |
 |-------|--------|
 | `ci:<name>` | Run that one job (e.g. `ci:hostap`, `ci:curl`, `ci:static-analysis`). Add several to run several. |
-| `ci:all` | Run the whole fan-out (all 43 jobs). |
+| `ci:all` | Run the whole fan-out (all 46 jobs). |
 | (no label) | Nothing runs — a normal PR is unaffected. |
 
 `<name>` is the job key in the table below (the workflow base name, e.g.
@@ -93,6 +93,15 @@ gh workflow run pr-osp-select.yml --ref <branch> -f jobs="all"
 > Adding a brand-new OSP workflow? Append a matching label block to
 > `pr-osp-select.yml` (same `needs: select` + `if:` pattern) so it's
 > reachable via `ci:<name>`.
+
+### Windows
+
+`windows.yml` is neither per-PR nor nightly — run it with `ci:windows`
+(or `ci:all`). It builds OpenSSL and wolfSSL from source with MSVC on a
+`windows-2025` runner, then the `IDE/WINVS` solution and the unit suite.
+x64 non-FIPS: FIPS needs a bundle the public runners can't have. The
+OpenSSL build is cached, so a cold run is roughly 20 minutes and a warm
+one under ten.
 
 ### What runs in the nightly fan-out
 
