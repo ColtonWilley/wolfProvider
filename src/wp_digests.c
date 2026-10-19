@@ -932,7 +932,7 @@ const OSSL_DISPATCH name##_functions[] = {                                     \
  * SHAKE
  ******************************************************************************/
 
-#ifdef WP_HAVE_SHAKE_256
+#if defined(WP_HAVE_SHAKE_128) || defined(WP_HAVE_SHAKE_256)
 
 /**
  * Get the table of supported settable and gettable parameters for XOF.
@@ -982,11 +982,23 @@ IMPLEMENT_DIGEST_NEWCTX(wp_shake, wp_ShakeCtx)
 IMPLEMENT_XOF_SET_CTX_PARAMS(wp_shake, wp_ShakeCtx)
 IMPLEMENT_XOF_GET_CTX_PARAMS(wp_shake, wp_ShakeCtx)
 
+#ifdef WP_HAVE_SHAKE_128
+/* No wolfCrypt SHAKE-128 digest size constant: 128 / 8. */
+IMPLEMENT_XOF(shake, wp_shake_128, wc_Shake, wp_ShakeCtx,
+              WC_SHA3_128_BLOCK_SIZE, 16,
+              WP_SHAKE_FLAGS,
+              wc_InitShake128, wc_Shake128_Update, wc_Shake128_Final,
+              wc_Shake128_Copy, wc_Shake128_Free, wc_Shake128_Absorb,
+              wc_Shake128_SqueezeBlocks)
+#endif
+
+#ifdef WP_HAVE_SHAKE_256
 IMPLEMENT_XOF(shake, wp_shake_256, wc_Shake, wp_ShakeCtx,
               WC_SHA3_256_BLOCK_SIZE, WC_SHA3_256_DIGEST_SIZE,
               WP_SHAKE_FLAGS,
               wc_InitShake256, wc_Shake256_Update, wc_Shake256_Final,
               wc_Shake256_Copy, wc_Shake256_Free, wc_Shake256_Absorb,
               wc_Shake256_SqueezeBlocks)
+#endif
 
 #endif
