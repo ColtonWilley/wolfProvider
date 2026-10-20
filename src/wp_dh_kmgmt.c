@@ -3156,7 +3156,9 @@ static int wp_dh_type_specific_does_selection(WOLFPROV_CTX* provCtx,
         ok = 1;
     }
     else {
-        ok = (selection & OSSL_KEYMGMT_SELECT_ALL_PARAMETERS) != 0;
+        /* Parameters only: key parts go to PrivateKeyInfo/SPKI. */
+        ok = ((selection & OSSL_KEYMGMT_SELECT_KEYPAIR) == 0) &&
+             ((selection & OSSL_KEYMGMT_SELECT_ALL_PARAMETERS) != 0);
     }
 
     WOLFPROV_LEAVE_SILENT(WP_LOG_COMP_DH, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__),
