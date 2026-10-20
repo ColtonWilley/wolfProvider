@@ -72,6 +72,9 @@ from a named group or existing parameters accepts a generator only when the
 parameters already have it. A non-zero `priv_len` is refused because wolfSSL
 takes the private key length from the group.
 
+Key exchange refuses the X9.42 KDF (`X942KDF-ASN1`) because wolfCrypt has no
+X9.42 KDF, so CMS with DH recipients is not supported.
+
 ### ECC
 * ECDSA (signing, verification)
 * ECDH (key exchange, optional X9.63 KDF as used by CMS)
