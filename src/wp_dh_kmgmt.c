@@ -2352,8 +2352,10 @@ static int wp_dh_decode_pki(wp_Dh* dh, unsigned char* data, word32 len)
     }
 #endif
     if (ok) {
+        PRIVATE_KEY_UNLOCK();
         rc = wc_DhAgree(&dh->key, dh->pub, &pubLen, dh->priv,
             (word32)dh->privSz, base, (word32)baseSz);
+        PRIVATE_KEY_LOCK();
         if (rc != 0) {
             ok = 0;
         }
