@@ -74,7 +74,7 @@ takes the private key length from the group.
 
 ### ECC
 * ECDSA (signing, verification)
-* ECDH (key exchange)
+* ECDH (key exchange, optional X9.63 KDF as used by CMS)
 * Key generation
 * Curves: P-192, P-224, P-256, P-384, P-521
 
