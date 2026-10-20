@@ -365,12 +365,14 @@ TEST_CASE test_case[] = {
     TEST_DECL(test_dh_pgen_pkey, NULL),
     TEST_DECL(test_dh_pkey, NULL),
     TEST_DECL(test_dh_invalid_kdf_strings, NULL),
-#if defined(WOLFSSL_DH_EXTRA) && defined(WP_HAVE_EPKI_TEST) && \
-    !defined(HAVE_FIPS)
+#if defined(WOLFSSL_DH_EXTRA) && defined(WP_HAVE_EPKI_TEST)
     TEST_DECL(test_dh_encode_epki, NULL),
 #endif
     TEST_DECL(test_dh_decode, NULL),
     TEST_DECL(test_dh_decode_big_g, NULL),
+#ifdef WOLFSSL_DH_EXTRA
+    TEST_DECL(test_dh_pki_round_trip, NULL),
+#endif
     TEST_DECL(test_dh_krb5_keygen, NULL),
     TEST_DECL(test_dh_pad, NULL),
     TEST_DECL(test_dh_derive_small_buffer, NULL),

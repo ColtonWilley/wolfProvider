@@ -449,12 +449,7 @@ int test_dh_pkey(void *data)
     return err;
 }
 
-/* Not run under FIPS: dh_der carries an arbitrary group where FIPS allows
- * only approved safe primes, and a generated ffdhe2048 key encrypts but
- * will not decode back. Both predate the EPKI gate fix that made this
- * test visible to FIPS builds. */
-#if defined(WOLFSSL_DH_EXTRA) && defined(WP_HAVE_EPKI_TEST) && \
-    !defined(HAVE_FIPS)
+#if defined(WOLFSSL_DH_EXTRA) && defined(WP_HAVE_EPKI_TEST)
 int test_dh_encode_epki(void *data)
 {
     int err = 0;
@@ -540,7 +535,7 @@ int test_dh_encode_epki(void *data)
 
     return err;
 }
-#endif /* WOLFSSL_DH_EXTRA && WP_HAVE_EPKI_TEST && !HAVE_FIPS */
+#endif /* WOLFSSL_DH_EXTRA && WP_HAVE_EPKI_TEST */
 
 int test_dh_invalid_kdf_strings(void *data)
 {
@@ -688,6 +683,73 @@ int test_dh_decode_big_g(void *data)
 
     return test_dh_decode_der(dh_big_g_der, (int)sizeof(dh_big_g_der));
 }
+
+#ifdef WOLFSSL_DH_EXTRA
+/* OSSL_DECODER only: no libcrypto legacy fallback as in d2i/PKCS82PKEY. */
+static EVP_PKEY* test_dh_pki_decode(OSSL_LIB_CTX* libCtx,
+    const unsigned char* der, size_t derLen)
+{
+    EVP_PKEY* pkey = NULL;
+    OSSL_DECODER_CTX* dctx;
+
+    dctx = OSSL_DECODER_CTX_new_for_pkey(&pkey, "DER", "PrivateKeyInfo", "DH",
+        EVP_PKEY_KEYPAIR, libCtx, NULL);
+    if (dctx != NULL) {
+        (void)OSSL_DECODER_from_data(dctx, &der, &derLen);
+    }
+    OSSL_DECODER_CTX_free(dctx);
+
+    return pkey;
+}
+
+/* wolfProvider decodes a PKCS#8 DH key and i2d_PrivateKey writes it back as
+ * PKCS#8 (not DH parameters) that the default provider reads. */
+int test_dh_pki_round_trip(void *data)
+{
+    int err;
+    EVP_PKEY* wpKey = NULL;
+    EVP_PKEY* osslKey = NULL;
+    unsigned char* der = NULL;
+    int derLen = 0;
+    BIGNUM* wpPriv = NULL;
+    BIGNUM* osslPriv = NULL;
+
+    (void)data;
+
+    wpKey = test_dh_pki_decode(wpLibCtx, dh_der, sizeof(dh_der));
+    err = (wpKey == NULL);
+    if (err == 0) {
+        derLen = i2d_PrivateKey(wpKey, &der);
+        err = (derLen <= 0);
+    }
+    if (err == 0) {
+        osslKey = test_dh_pki_decode(osslLibCtx, der, (size_t)derLen);
+        err = (osslKey == NULL);
+    }
+    if (err == 0) {
+        err = (EVP_PKEY_get_bn_param(wpKey, OSSL_PKEY_PARAM_PRIV_KEY,
+            &wpPriv) != 1) || (EVP_PKEY_get_bn_param(osslKey,
+            OSSL_PKEY_PARAM_PRIV_KEY, &osslPriv) != 1);
+    }
+    if (err == 0) {
+        err = (BN_cmp(wpPriv, osslPriv) != 0) ||
+              (EVP_PKEY_eq(wpKey, osslKey) != 1);
+    }
+    /* Type-specific stays parameters only, as in the default provider. */
+    if (err == 0) {
+        err = (i2d_KeyParams(wpKey, NULL) != i2d_KeyParams(osslKey, NULL)) ||
+              (i2d_PublicKey(wpKey, NULL) != i2d_PublicKey(osslKey, NULL));
+    }
+
+    BN_free(osslPriv);
+    BN_free(wpPriv);
+    OPENSSL_free(der);
+    EVP_PKEY_free(osslKey);
+    EVP_PKEY_free(wpKey);
+
+    return err;
+}
+#endif /* WOLFSSL_DH_EXTRA */
 
 int test_dh_get_params(void *data) 
 {
