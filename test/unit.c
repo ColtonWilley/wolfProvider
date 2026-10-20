@@ -482,6 +482,11 @@ TEST_CASE test_case[] = {
         #if defined(HAVE_X963_KDF) && defined(WP_HAVE_SHA256)
         TEST_DECL(test_ecdh_x963_kdf, NULL),
         #endif
+        #if defined(HAVE_X963_KDF) && defined(HAVE_AES_KEYWRAP) && \
+            defined(WP_HAVE_AESCBC) && defined(WP_HAVE_SHA1) && \
+            !defined(OPENSSL_NO_CMS)
+        TEST_DECL(test_ecdh_cms_kari, NULL),
+        #endif
     #endif
     #ifdef WP_HAVE_ECDSA
         TEST_DECL(test_ecdsa_p256_pkey, NULL),

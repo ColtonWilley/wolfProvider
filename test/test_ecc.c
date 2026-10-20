@@ -26,6 +26,8 @@
 #include <openssl/encoder.h>
 #include <openssl/core_names.h>
 #include <openssl/param_build.h>
+#include <openssl/cms.h>
+#include <openssl/pem.h>
 
 #include <wolfssl/wolfcrypt/hash.h>
 
@@ -1424,6 +1426,92 @@ int test_ecdh_x963_kdf(void *data)
     return err;
 }
 #endif /* HAVE_X963_KDF && WP_HAVE_SHA256 */
+
+#if defined(HAVE_X963_KDF) && defined(HAVE_AES_KEYWRAP) && \
+    defined(WP_HAVE_AESCBC) && defined(WP_HAVE_SHA1) && !defined(OPENSSL_NO_CMS)
+/* CMS EC recipient (cms_kari.c): encrypt in encCtx, decrypt in decCtx. */
+static int test_ecdh_cms_kari_dir(OSSL_LIB_CTX *encCtx, OSSL_LIB_CTX *decCtx)
+{
+    static const char msg[] = "CMS EC key agreement";
+    int err;
+    const unsigned char *p = ecc_key_der_256;
+    X509 *cert = NULL;
+    EVP_PKEY *key = NULL;
+    STACK_OF(X509) *recips = NULL;
+    EVP_CIPHER *cipher = NULL;
+    CMS_ContentInfo *cms = NULL;
+    CMS_ContentInfo *dec = NULL;
+    BIO *in = NULL;
+    BIO *der = NULL;
+    BIO *out = NULL;
+    char *outData = NULL;
+
+    in = BIO_new_file(CERTS_DIR "/server-ecc.pem", "r");
+    cert = X509_new_ex(encCtx, NULL);
+    err = (in == NULL) || (cert == NULL) ||
+        (PEM_read_bio_X509(in, &cert, NULL, NULL) == NULL);
+    BIO_free(in);
+    in = NULL;
+    if (err == 0) {
+        recips = sk_X509_new_null();
+        err = (recips == NULL) || (sk_X509_push(recips, cert) != 1);
+    }
+    if (err == 0) {
+        cipher = EVP_CIPHER_fetch(encCtx, "AES-128-CBC", NULL);
+        in = BIO_new_mem_buf(msg, sizeof(msg) - 1);
+        der = BIO_new(BIO_s_mem());
+        out = BIO_new(BIO_s_mem());
+        err = (cipher == NULL) || (in == NULL) || (der == NULL) ||
+            (out == NULL);
+    }
+    if (err == 0) {
+        cms = CMS_encrypt_ex(recips, in, cipher, CMS_BINARY, encCtx, NULL);
+        err = (cms == NULL) || (i2d_CMS_bio(der, cms) != 1);
+    }
+    if (err == 0) {
+        key = d2i_PrivateKey_ex(EVP_PKEY_EC, NULL, &p,
+            sizeof(ecc_key_der_256), decCtx, NULL);
+        dec = CMS_ContentInfo_new_ex(decCtx, NULL);
+        err = (key == NULL) || (dec == NULL) ||
+            (d2i_CMS_bio(der, &dec) == NULL);
+    }
+    if (err == 0) {
+        err = CMS_decrypt(dec, key, NULL, NULL, out, CMS_BINARY) != 1;
+    }
+    if (err == 0) {
+        err = (BIO_get_mem_data(out, &outData) != (long)(sizeof(msg) - 1)) ||
+            (memcmp(outData, msg, sizeof(msg) - 1) != 0);
+    }
+
+    BIO_free(out);
+    BIO_free(der);
+    BIO_free(in);
+    CMS_ContentInfo_free(dec);
+    CMS_ContentInfo_free(cms);
+    EVP_CIPHER_free(cipher);
+    sk_X509_free(recips);
+    EVP_PKEY_free(key);
+    X509_free(cert);
+
+    return err;
+}
+
+int test_ecdh_cms_kari(void *data)
+{
+    int err;
+
+    (void)data;
+
+    PRINT_MSG("CMS EC recipient: wolfProvider encrypt, OpenSSL decrypt");
+    err = test_ecdh_cms_kari_dir(wpLibCtx, osslLibCtx);
+    if (err == 0) {
+        PRINT_MSG("CMS EC recipient: OpenSSL encrypt, wolfProvider decrypt");
+        err = test_ecdh_cms_kari_dir(osslLibCtx, wpLibCtx);
+    }
+
+    return err;
+}
+#endif /* HAVE_X963_KDF && HAVE_AES_KEYWRAP && WP_HAVE_AESCBC ... */
 #endif /* WP_HAVE_EC_P256 */
 
 #ifdef WP_HAVE_EC_P192

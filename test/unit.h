@@ -542,6 +542,10 @@ int test_ecdh_p256(void *data);
 #if defined(HAVE_X963_KDF) && defined(WP_HAVE_SHA256)
 int test_ecdh_x963_kdf(void *data);
 #endif
+#if defined(HAVE_X963_KDF) && defined(HAVE_AES_KEYWRAP) && \
+    defined(WP_HAVE_AESCBC) && defined(WP_HAVE_SHA1) && !defined(OPENSSL_NO_CMS)
+int test_ecdh_cms_kari(void *data);
+#endif
 #endif /* WP_HAVE_EC_P256 */
 #ifdef WP_HAVE_EC_P384
 int test_ecdh_p384(void *data);
