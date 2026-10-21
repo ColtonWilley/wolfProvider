@@ -1366,12 +1366,20 @@ static int wp_aesgcm_tls_cipher(wp_AeadCtx* ctx, unsigned char* out,
         len -= EVP_GCM_TLS_EXPLICIT_IV_LEN + EVP_GCM_TLS_TAG_LEN;
 
         if (ctx->enc) {
-            rc = wc_AesGcmEncrypt(&ctx->aes, out, in, (word32)len, ctx->iv,
-                    (word32)ctx->ivLen, out + len, EVP_GCM_TLS_TAG_LEN,
-                    ctx->buf, EVP_AEAD_TLS1_AAD_LEN);
+            /* FIPS wraps only the _ex encrypt, not wc_AesGcmEncrypt. */
+            rc = wc_AesGcmSetExtIV(&ctx->aes, ctx->iv, (word32)ctx->ivLen);
             if (rc != 0) {
-                WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "wc_AesGcmEncrypt", rc);
+                WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "wc_AesGcmSetExtIV", rc);
                 ok = 0;
+            }
+            if (ok) {
+                rc = wc_AesGcmEncrypt_ex(&ctx->aes, out, in, (word32)len,
+                        ctx->iv, (word32)ctx->ivLen, out + len,
+                        EVP_GCM_TLS_TAG_LEN, ctx->buf, EVP_AEAD_TLS1_AAD_LEN);
+                if (rc != 0) {
+                    WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "wc_AesGcmEncrypt_ex", rc);
+                    ok = 0;
+                }
             }
             if (!wp_aesgcm_iv_inc(ctx)) {
                 ok = 0;
