@@ -53,7 +53,16 @@ openssl_clone() {
     # version. Letting apt pick the highest available version across the
     # configured suites selects the security-patched source (e.g. 3.0.19)
     # when one exists.
-    apt-get source openssl
+    # OPENSSL_SRC_VERSION pins an exact Debian source version. Unset, apt picks
+    # the highest available, which is what nightly CI wants. Customer drops pin
+    # to one version, and without this a Debian security update silently changes
+    # which OpenSSL we ship them.
+    if [ -n "${OPENSSL_SRC_VERSION:-}" ]; then
+        printf "\tPinning OpenSSL source to %s\n" "$OPENSSL_SRC_VERSION"
+        apt-get source "openssl=${OPENSSL_SRC_VERSION}"
+    else
+        apt-get source openssl
+    fi
 
     openssl_dir=$(ls -td openssl-* | head -n 1)
     printf "OpenSSL source directory: $openssl_dir\n"
@@ -166,6 +175,9 @@ main() {
                 echo "  -h, --help             Show this help message"
                 echo "Arguments:"
                 echo "  output-directory       Directory to to store built packages (default: mktemp -d)"
+                echo "Environment:"
+                echo "  OPENSSL_SRC_VERSION    Pin the Debian source version (e.g. 3.0.20-1~deb12u2);"
+                echo "                         unset builds the highest version apt offers"
                 exit 0
                 ;;
             --)
