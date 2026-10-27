@@ -984,12 +984,9 @@ int wp_dh_match(const wp_Dh* dh1, const wp_Dh* dh2, int selection)
         }
     }
     if (ok && ((selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS) != 0)) {
-        /* Check id is the same. */
-        ok &= dh1->id == dh2->id;
-        if (ok && (dh1->id == 0)) {
-            ok &= (mp_cmp((mp_int*)&dh1->key.p, (mp_int*)&dh2->key.p) == MP_EQ);
-            ok &= (mp_cmp((mp_int*)&dh1->key.g, (mp_int*)&dh2->key.g) == MP_EQ);
-        }
+        /* p and g, as OpenSSL: decoded keys have no group id. */
+        ok &= (mp_cmp((mp_int*)&dh1->key.p, (mp_int*)&dh2->key.p) == MP_EQ);
+        ok &= (mp_cmp((mp_int*)&dh1->key.g, (mp_int*)&dh2->key.g) == MP_EQ);
     }
 
     WOLFPROV_LEAVE(WP_LOG_COMP_DH, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
@@ -1748,7 +1745,7 @@ static int wp_dh_gen_set_params(wp_DhGenCtx* ctx, const OSSL_PARAM params[])
 }
 
 /**
- * Generate DH group parameters using wolfSSL.
+ * Set the requested DH group or generate parameters using wolfSSL.
  *
  * @param [in, out] ctx  DH generation context object.
  * @param [in, out] dh   DH key object.
@@ -1768,7 +1765,14 @@ static int wp_dh_gen_parameters(wp_DhGenCtx *ctx, wp_Dh* dh)
         ERR_raise(ERR_LIB_PROV, PROV_R_NOT_SUPPORTED);
         ok = 0;
     }
-    if (ok) {
+    if (ok && (ctx->name[0] != '\0')) {
+        ok = wp_dh_map_group_name(dh, ctx->name);
+        if (!ok) {
+            ERR_raise_data(ERR_LIB_PROV, PROV_R_NOT_SUPPORTED, "DH group %s",
+                ctx->name);
+        }
+    }
+    else if (ok) {
         rc = wc_DhGenerateParams(&ctx->rng, ctx->bits, &dh->key);
         if (rc != 0) {
             WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "wc_DhGenerateParams",
@@ -1801,28 +1805,7 @@ static int wp_dh_gen_copy_parameters(wp_DhGenCtx *ctx, wp_Dh* dh)
     WOLFPROV_ENTER(WP_LOG_COMP_DH, "wp_dh_gen_copy_parameters");
 
     if (ctx->dh != NULL) {
-        int rc;
-
-        rc = mp_copy(&ctx->dh->key.p, &dh->key.p);
-        if (rc != 0) {
-            WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "mp_copy", rc);
-            ok = 0;
-        }
-        if (ok) {
-            rc = mp_copy(&ctx->dh->key.g, &dh->key.g);
-            if (rc != 0) {
-                WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "mp_copy", rc);
-                ok = 0;
-            }
-        }
-        if (ok) {
-            rc = mp_copy(&ctx->dh->key.q, &dh->key.q);
-            if (rc != 0) {
-                WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "mp_copy", rc);
-                ok = 0;
-            }
-        }
-        dh->bits = mp_count_bits(&dh->key.p);
+        ok = wp_dh_copy_params(ctx->dh, dh);
     }
     else if (ctx->name[0] != '\0') {
         if (!wp_dh_map_group_name(dh, ctx->name)) {
