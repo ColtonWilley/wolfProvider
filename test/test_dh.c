@@ -384,27 +384,35 @@ static int test_dh_pkey_keygen(EVP_PKEY *params)
 
 int test_dh_pgen_pkey(void *data)
 {
-    int err;
+    int err = 0;
+    int i;
+    /* A named group, and parameters from wolfSSL. */
+    static const char *alg[] = { "DH", "DHX" };
     EVP_PKEY_CTX *ctx = NULL;
     EVP_PKEY *params = NULL;
 
     (void)data;
 
-    PRINT_MSG("Generate DH parameters and key pair with wolfProvider");
-    err = (ctx = EVP_PKEY_CTX_new_from_name(wpLibCtx, "DH", NULL)) == NULL;
-    if (err == 0) {
-        err = EVP_PKEY_paramgen_init(ctx) != 1;
-    }
-    if (err == 0) {
-        err = EVP_PKEY_paramgen(ctx, &params) != 1;
-    }
+    for (i = 0; (err == 0) && (i < 2); i++) {
+        PRINT_MSG("Generate %s parameters and key pair with wolfProvider",
+            alg[i]);
+        params = NULL;
+        err = (ctx = EVP_PKEY_CTX_new_from_name(wpLibCtx, alg[i], NULL)) ==
+              NULL;
+        if (err == 0) {
+            err = EVP_PKEY_paramgen_init(ctx) != 1;
+        }
+        if (err == 0) {
+            err = EVP_PKEY_paramgen(ctx, &params) != 1;
+        }
 
-    if (err == 0) {
-        err = test_dh_pkey_keygen(params);
-    }
+        if (err == 0) {
+            err = test_dh_pkey_keygen(params);
+        }
 
-    EVP_PKEY_free(params);
-    EVP_PKEY_CTX_free(ctx);
+        EVP_PKEY_free(params);
+        EVP_PKEY_CTX_free(ctx);
+    }
 
     return err;
 }
@@ -758,7 +766,10 @@ int test_dh_get_params(void *data)
         OSSL_PARAM_octet_string(OSSL_PKEY_PARAM_PRIV_KEY, NULL, 0),
         OSSL_PARAM_BN(OSSL_PKEY_PARAM_FFC_P, NULL, 0),
         OSSL_PARAM_BN(OSSL_PKEY_PARAM_FFC_G, NULL, 0),
+    #ifdef HAVE_FFDHE_Q
+        /* The named group carries q only with HAVE_FFDHE_Q. */
         OSSL_PARAM_BN(OSSL_PKEY_PARAM_FFC_Q, NULL, 0),
+    #endif
         OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME, NULL, 0),
         OSSL_PARAM_END
     };
@@ -1761,6 +1772,7 @@ int test_dh_import_group_no_nul(void *data)
  * from the provider's own WP_DH_MIN_BITS so the two cannot diverge. */
 #define TEST_DH_MIN_BITS  WP_DH_MIN_BITS
 #define TEST_DH_WEAK_BITS (WP_DH_MIN_BITS / 2)
+#define TEST_DH_PGEN_BITS 2048
 int test_dh_pgen_min_bits(void *data)
 {
     int err = 0;
@@ -1816,9 +1828,9 @@ int test_dh_pgen_min_bits(void *data)
     EVP_PKEY_CTX_free(ctx);
     ctx = NULL;
 
-    /* Size at the minimum must still succeed. */
+    /* Size at the minimum must still succeed (DHX). */
     if (err == 0) {
-        ctx = EVP_PKEY_CTX_new_from_name(wpLibCtx, "DH", NULL);
+        ctx = EVP_PKEY_CTX_new_from_name(wpLibCtx, "DHX", NULL);
         err = ctx == NULL;
     }
     if (err == 0) {
@@ -1831,7 +1843,7 @@ int test_dh_pgen_min_bits(void *data)
     if (err == 0) {
         err = EVP_PKEY_paramgen(ctx, &keyParams) != 1;
         if (err != 0) {
-            PRINT_MSG("DH paramgen failed at the minimum prime size");
+            PRINT_MSG("DHX paramgen failed at the minimum prime size");
         }
     }
     if (err == 0) {
@@ -2070,8 +2082,8 @@ int test_dh_param_check_q(void *data)
 }
 
 /* The generation interface must not report success for controls wolfSSL
- * cannot apply: it picks the generator during parameter generation and
- * derives the private key length from the group. */
+ * cannot apply: named groups fix the generator and wolfSSL derives the
+ * private key length from the group. */
 #define TEST_DH_GEN_PRIV_LEN 256
 
 /* Parameter generation refuses a generator wolfSSL cannot produce. It takes
@@ -2091,7 +2103,7 @@ static int test_dh_pgen_generator(int gen, int expectOk)
         err = EVP_PKEY_paramgen_init(ctx) != 1;
     }
     if (err == 0) {
-        err = EVP_PKEY_CTX_set_dh_paramgen_prime_len(ctx, TEST_DH_MIN_BITS)
+        err = EVP_PKEY_CTX_set_dh_paramgen_prime_len(ctx, TEST_DH_PGEN_BITS)
               != 1;
     }
     if (err == 0) {
@@ -2111,8 +2123,6 @@ static int test_dh_pgen_generator(int gen, int expectOk)
             err = 1;
         }
     }
-    /* wolfSSL derives the generator from the prime it made, so the value
-     * produced is not the requested one and is not compared with it. */
     if ((err == 0) && expectOk) {
         err = EVP_PKEY_get_bn_param(keyParams, OSSL_PKEY_PARAM_FFC_P, &prime)
               != 1;
@@ -2126,10 +2136,8 @@ static int test_dh_pgen_generator(int gen, int expectOk)
             PRINT_MSG("paramgen produced a prime below the minimum size");
             err = 1;
         }
-        /* A generator must be at least 2 and less than the prime. */
-        if ((err == 0) && ((BN_num_bits(generator) < 2) ||
-                (BN_cmp(generator, prime) >= 0))) {
-            PRINT_MSG("paramgen produced a generator outside 2 to p - 1");
+        if ((err == 0) && (!BN_is_word(generator, 2))) {
+            PRINT_MSG("paramgen produced a generator other than 2");
             err = 1;
         }
     }
@@ -2445,6 +2453,88 @@ int test_dh_pgen_group_name(void *data)
     EVP_PKEY_free(key);
     EVP_PKEY_free(params);
     EVP_PKEY_free(ref);
+    return err;
+}
+
+/* DH: named group of the size; DHX: wolfSSL's unless type is group. */
+int test_dh_pgen_named_group(void *data)
+{
+    static const struct {
+        const char *alg;
+        size_t bits;
+        const char *type;
+        /* Group expected, "" for wolfSSL's, NULL when refused. */
+        const char *group;
+    } tc[] = {
+        { "DH",  2048, NULL,        "ffdhe2048" },
+        { "DH",  3072, "default",   "ffdhe3072" },
+    #ifdef HAVE_FFDHE_4096
+        { "DH",  4096, "group",     "ffdhe4096" },
+    #else
+        { "DH",  4096, "group",     NULL },
+    #endif
+        { "DH",  2560, NULL,        NULL },
+        { "DH",  2048, "generator", "ffdhe2048" },
+        { "DH",  2048, "fips186_4", NULL },
+        { "DHX", 2048, NULL,        "" },
+        { "DHX", 2048, "fips186_4", NULL },
+        { "DHX", 2048, "generator", NULL },
+        { "DHX", 3072, "group",     "ffdhe3072" },
+        { "DHX", 2048, "default",   "" },
+        { "DHX", 2048, "fips186_2", NULL },
+    };
+    int err = 0;
+    size_t i;
+    size_t bits;
+    int ok;
+    EVP_PKEY_CTX *ctx;
+    EVP_PKEY *key;
+    OSSL_PARAM params[2];
+    OSSL_PARAM *exported;
+    const OSSL_PARAM *p;
+    const char *name;
+
+    (void)data;
+
+    for (i = 0; (err == 0) && (i < sizeof(tc) / sizeof(*tc)); i++) {
+        PRINT_MSG("%s parameters of %zu bits, type %s", tc[i].alg, tc[i].bits,
+            tc[i].type != NULL ? tc[i].type : "unset");
+        key = NULL;
+        exported = NULL;
+        name = "";
+        bits = tc[i].bits;
+        params[0] = OSSL_PARAM_construct_size_t(OSSL_PKEY_PARAM_FFC_PBITS,
+            &bits);
+        params[1] = OSSL_PARAM_construct_end();
+        ctx = EVP_PKEY_CTX_new_from_name(wpLibCtx, tc[i].alg, NULL);
+        /* As -pkeyopt type:<t>. */
+        ok = (ctx != NULL) && (EVP_PKEY_paramgen_init(ctx) == 1) &&
+             (EVP_PKEY_CTX_set_params(ctx, params) == 1) &&
+             ((tc[i].type == NULL) ||
+              (EVP_PKEY_CTX_ctrl_str(ctx, "type", tc[i].type) == 1)) &&
+             (EVP_PKEY_paramgen(ctx, &key) == 1);
+        err = ok != (tc[i].group != NULL);
+        if ((err == 0) && ok) {
+            err = EVP_PKEY_todata(key, EVP_PKEY_KEY_PARAMETERS, &exported) != 1;
+            p = OSSL_PARAM_locate_const(exported, OSSL_PKEY_PARAM_GROUP_NAME);
+            if ((err == 0) && (p != NULL)) {
+                err = OSSL_PARAM_get_utf8_string_ptr(p, &name) != 1;
+            }
+        }
+        /* wolfSSL's parameters have q. */
+        if ((err == 0) && ok && ((strcmp(name, tc[i].group) != 0) ||
+                ((name[0] == '\0') && (OSSL_PARAM_locate_const(exported,
+                OSSL_PKEY_PARAM_FFC_Q) == NULL)))) {
+            err = 1;
+        }
+        if (err != 0) {
+            PRINT_MSG("Unexpected result: generated %d, group %s", ok, name);
+        }
+        OSSL_PARAM_free(exported);
+        EVP_PKEY_free(key);
+        EVP_PKEY_CTX_free(ctx);
+    }
+
     return err;
 }
 

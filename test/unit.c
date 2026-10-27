@@ -387,6 +387,7 @@ TEST_CASE test_case[] = {
     TEST_DECL(test_dh_pgen_controls, NULL),
     TEST_DECL(test_dh_export_named_group_params, NULL),
     TEST_DECL(test_dh_pgen_group_name, NULL),
+    TEST_DECL(test_dh_pgen_named_group, NULL),
     TEST_DECL(test_dh_encoder_import_object, NULL),
 #ifndef WOLFPROV_QUICKTEST
     TEST_DECL(test_dh_get_params, NULL),
