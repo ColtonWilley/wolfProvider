@@ -82,6 +82,7 @@ jobs:
             -DWC_RSA_NO_PADDING \
             -DWOLFSSL_PUBLIC_MP \
             -DHAVE_PUBLIC_FFDHE \
+            -DHAVE_FFDHE_4096 \
             -DHAVE_FFDHE_6144 \
             -DHAVE_FFDHE_8192 \
             -DWOLFSSL_PSS_LONG_SALT \
@@ -176,6 +177,7 @@ jobs:
             -DWC_RSA_NO_PADDING \
             -DWOLFSSL_PUBLIC_MP \
             -DHAVE_PUBLIC_FFDHE \
+            -DHAVE_FFDHE_4096 \
             -DHAVE_FFDHE_6144 \
             -DHAVE_FFDHE_8192 \
             -DWOLFSSL_PSS_LONG_SALT \

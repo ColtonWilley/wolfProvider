@@ -92,8 +92,7 @@ sudo make install
 
 | Flag | Purpose |
 |------|---------|
-| `-DHAVE_FFDHE_4096 -DHAVE_FFDHE_6144 -DHAVE_FFDHE_8192 -DFP_MAX_BITS=16384` | Enable 4096/6144/8192-bit DH: parameter generation offers only built-in groups |
-| `-DHAVE_FFDHE_Q` | FFDHE groups carry q, as in FIPS builds |
+| `-DHAVE_FFDHE_4096 -DHAVE_FFDHE_6144 -DHAVE_FFDHE_8192 -DFP_MAX_BITS=16384` | Enable 4096/6144/8192-bit DH |
 | `-DSP_INT_BITS=8192` | Replace `-DFP_MAX_BITS=16384` when using SP math |
 
 #### wolfProvider
