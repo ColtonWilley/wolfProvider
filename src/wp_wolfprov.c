@@ -661,7 +661,7 @@ static const OSSL_ALGORITHM wolfprov_keymgmt[] = {
 #ifdef WP_HAVE_DH
     { WP_NAMES_DH, WOLFPROV_PROPERTIES, wp_dh_keymgmt_functions,
       "DH" },
-    { WP_NAMES_DHX, WOLFPROV_PROPERTIES, wp_dh_keymgmt_functions,
+    { WP_NAMES_DHX, WOLFPROV_PROPERTIES, wp_dhx_keymgmt_functions,
       "DHX" },
 #endif
 

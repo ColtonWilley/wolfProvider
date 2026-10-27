@@ -102,6 +102,10 @@ typedef struct wp_DhGenCtx {
     int bits;
     /** Generator requested by the caller. 0 when not requested. */
     int generator;
+    /** DHX key type. */
+    int dhx;
+    /** Generate parameters with wolfSSL, not a named group. */
+    int generate;
 } wp_DhGenCtx;
 
 /**
@@ -1739,6 +1743,25 @@ static int wp_dh_gen_set_params(wp_DhGenCtx* ctx, const OSSL_PARAM params[])
             ctx->name, sizeof(ctx->name)))) {
         ok = 0;
     }
+    if (ok) {
+        char type[WP_MAX_DH_GROUP_NAME_SZ] = "";
+
+        /* wolfSSL's own parameters are not FIPS 186 (no seed). */
+        ok = wp_params_get_utf8_string(params, OSSL_PKEY_PARAM_FFC_TYPE, type,
+            sizeof(type));
+        if ((XSTRCMP(type, "group") == 0) ||
+                ((!ctx->dhx) && (XSTRCMP(type, "generator") == 0))) {
+            ctx->generate = 0;
+        }
+        else if (XSTRCMP(type, "default") == 0) {
+            ctx->generate = ctx->dhx;
+        }
+        else if ((!ok) || (type[0] != '\0')) {
+            ERR_raise_data(ERR_LIB_PROV, PROV_R_NOT_SUPPORTED,
+                "DH parameter generation type %s", type);
+            ok = 0;
+        }
+    }
 
     WOLFPROV_LEAVE(WP_LOG_COMP_DH, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
     return ok;
@@ -1756,11 +1779,11 @@ static int wp_dh_gen_parameters(wp_DhGenCtx *ctx, wp_Dh* dh)
 {
     int ok = 1;
     int rc;
+    size_t i;
 
     WOLFPROV_ENTER(WP_LOG_COMP_DH, "wp_dh_gen_parameters");
 
-    /* wc_DhGenerateParams picks the generator itself. OpenSSL applications
-     * send 2 when the caller named none, so only another value is refused. */
+    /* Applications send 2 when no generator is named. */
     if ((ctx->generator != 0) && (ctx->generator != 2)) {
         ERR_raise(ERR_LIB_PROV, PROV_R_NOT_SUPPORTED);
         ok = 0;
@@ -1770,6 +1793,20 @@ static int wp_dh_gen_parameters(wp_DhGenCtx *ctx, wp_Dh* dh)
         if (!ok) {
             ERR_raise_data(ERR_LIB_PROV, PROV_R_NOT_SUPPORTED, "DH group %s",
                 ctx->name);
+        }
+    }
+    else if (ok && (!ctx->generate)) {
+        /* Named group of the size. */
+        for (i = 0; i < WP_DH_GROUP_MAP_SZ; i++) {
+            if (wp_dh_group_map[i].bits == ctx->bits) {
+                break;
+            }
+        }
+        if ((i == WP_DH_GROUP_MAP_SZ) ||
+                (!wp_dh_map_group_name(dh, wp_dh_group_map[i].name))) {
+            ERR_raise_data(ERR_LIB_PROV, PROV_R_NOT_SUPPORTED,
+                "no named DH group of %d bits", ctx->bits);
+            ok = 0;
         }
     }
     else if (ok) {
@@ -2052,6 +2089,7 @@ static const OSSL_PARAM* wp_dh_gen_settable_params(wp_DhGenCtx* ctx,
         OSSL_PARAM_int(OSSL_PKEY_PARAM_DH_PRIV_LEN, NULL),
         OSSL_PARAM_size_t(OSSL_PKEY_PARAM_FFC_PBITS, NULL),
         OSSL_PARAM_int(OSSL_PKEY_PARAM_DH_GENERATOR, NULL),
+        OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_FFC_TYPE, NULL, 0),
         OSSL_PARAM_END
     };
     (void)ctx;
@@ -2059,9 +2097,35 @@ static const OSSL_PARAM* wp_dh_gen_settable_params(wp_DhGenCtx* ctx,
     return wp_dh_gen_supported_settable;
 }
 
+/**
+ * Create DHX generation context object.
+ *
+ * @param [in] provCtx    Provider context.
+ * @param [in] selection  Parts of the key to generate.
+ * @param [in] params     Parameters to set for generation.
+ * @return  New DH generation context object on success.
+ * @return  NULL on failure.
+ */
+static wp_DhGenCtx* wp_dhx_gen_init(WOLFPROV_CTX* provCtx,
+    int selection, const OSSL_PARAM params[])
+{
+    wp_DhGenCtx* ctx = wp_dh_gen_init(provCtx, selection, NULL);
+
+    if (ctx != NULL) {
+        ctx->dhx = 1;
+        ctx->generate = 1;
+        if (!wp_dh_gen_set_params(ctx, params)) {
+            wp_dh_gen_cleanup(ctx);
+            ctx = NULL;
+        }
+    }
+
+    return ctx;
+}
+
 
 /**
- * Dispatch table for DH/DHX key management.
+ * Dispatch table for DH key management.
  */
 const OSSL_DISPATCH wp_dh_keymgmt_functions[] = {
     /* DH key. */
@@ -2084,6 +2148,39 @@ const OSSL_DISPATCH wp_dh_keymgmt_functions[] = {
                                             (DFUNC)wp_dh_query_operation_name },
     /* DH generation. */
     { OSSL_FUNC_KEYMGMT_GEN_INIT,           (DFUNC)wp_dh_gen_init             },
+    { OSSL_FUNC_KEYMGMT_GEN_SET_PARAMS,     (DFUNC)wp_dh_gen_set_params       },
+    { OSSL_FUNC_KEYMGMT_GEN_SETTABLE_PARAMS,
+                                            (DFUNC)wp_dh_gen_settable_params  },
+    { OSSL_FUNC_KEYMGMT_GEN,                (DFUNC)wp_dh_gen                  },
+    { OSSL_FUNC_KEYMGMT_GEN_CLEANUP,        (DFUNC)wp_dh_gen_cleanup          },
+    { OSSL_FUNC_KEYMGMT_GEN_SET_TEMPLATE,   (DFUNC)wp_dh_gen_set_template     },
+    { 0, NULL }
+};
+
+/**
+ * Dispatch table for DHX key management.
+ */
+const OSSL_DISPATCH wp_dhx_keymgmt_functions[] = {
+    /* DHX key. */
+    { OSSL_FUNC_KEYMGMT_NEW,                (DFUNC)wp_dh_new                  },
+    { OSSL_FUNC_KEYMGMT_FREE,               (DFUNC)wp_dh_free                 },
+    { OSSL_FUNC_KEYMGMT_DUP,                (DFUNC)wp_dh_dup                  },
+    { OSSL_FUNC_KEYMGMT_LOAD,               (DFUNC)wp_dh_load                 },
+    { OSSL_FUNC_KEYMGMT_GET_PARAMS,         (DFUNC)wp_dh_get_params           },
+    { OSSL_FUNC_KEYMGMT_GETTABLE_PARAMS,    (DFUNC)wp_dh_gettable_params      },
+    { OSSL_FUNC_KEYMGMT_SET_PARAMS,         (DFUNC)wp_dh_set_params           },
+    { OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS,    (DFUNC)wp_dh_settable_params      },
+    { OSSL_FUNC_KEYMGMT_HAS,                (DFUNC)wp_dh_has                  },
+    { OSSL_FUNC_KEYMGMT_MATCH,              (DFUNC)wp_dh_match                },
+    { OSSL_FUNC_KEYMGMT_VALIDATE,           (DFUNC)wp_dh_validate             },
+    { OSSL_FUNC_KEYMGMT_IMPORT,             (DFUNC)wp_dh_import               },
+    { OSSL_FUNC_KEYMGMT_IMPORT_TYPES,       (DFUNC)wp_dh_import_types         },
+    { OSSL_FUNC_KEYMGMT_EXPORT,             (DFUNC)wp_dh_export               },
+    { OSSL_FUNC_KEYMGMT_EXPORT_TYPES,       (DFUNC)wp_dh_export_types         },
+    { OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME,
+                                            (DFUNC)wp_dh_query_operation_name },
+    /* DHX generation. */
+    { OSSL_FUNC_KEYMGMT_GEN_INIT,           (DFUNC)wp_dhx_gen_init            },
     { OSSL_FUNC_KEYMGMT_GEN_SET_PARAMS,     (DFUNC)wp_dh_gen_set_params       },
     { OSSL_FUNC_KEYMGMT_GEN_SETTABLE_PARAMS,
                                             (DFUNC)wp_dh_gen_settable_params  },

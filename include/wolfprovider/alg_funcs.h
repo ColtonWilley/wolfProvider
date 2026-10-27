@@ -476,6 +476,7 @@ extern const OSSL_DISPATCH wp_x448_keymgmt_functions[];
 extern const OSSL_DISPATCH wp_ed25519_keymgmt_functions[];
 extern const OSSL_DISPATCH wp_ed448_keymgmt_functions[];
 extern const OSSL_DISPATCH wp_dh_keymgmt_functions[];
+extern const OSSL_DISPATCH wp_dhx_keymgmt_functions[];
 extern const OSSL_DISPATCH wp_hmac_keymgmt_functions[];
 extern const OSSL_DISPATCH wp_cmac_keymgmt_functions[];
 extern const OSSL_DISPATCH wp_kdf_keymgmt_functions[];
