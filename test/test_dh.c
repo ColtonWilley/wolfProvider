@@ -523,14 +523,12 @@ int test_dh_encode_epki(void *data)
             err = EVP_PKEY_generate(genCtx, &genKey) != 1;
         }
         if (err == 0) {
-            /* No key comparison: a generated DH key does not compare equal
-             * after a PKCS#8 round trip, with or without a cipher. */
             err = test_pki_cipher_encrypts(genKey, "DER",
-                "provider=libwolfprov", wpLibCtx, 0);
+                "provider=libwolfprov", wpLibCtx, 1);
         }
         if (err == 0) {
             err = test_pki_cipher_encrypts(genKey, "PEM",
-                "provider=libwolfprov", wpLibCtx, 0);
+                "provider=libwolfprov", wpLibCtx, 1);
         }
         EVP_PKEY_free(genKey);
         EVP_PKEY_CTX_free(genCtx);
@@ -2371,6 +2369,82 @@ int test_dh_export_named_group_params(void *data)
 
     OSSL_PARAM_free(exported);
     EVP_PKEY_free(pkey);
+    return err;
+}
+
+/* TLS 1.3 FFDHE: paramgen by group name ignores size; keys keep the group. */
+int test_dh_pgen_group_name(void *data)
+{
+    int err;
+    int i;
+    EVP_PKEY_CTX *ctx = NULL;
+    EVP_PKEY *ref = NULL;
+    EVP_PKEY *params = NULL;
+    EVP_PKEY *key = NULL;
+    EVP_PKEY *explicitKey = NULL;
+    BIGNUM *p = NULL;
+    BIGNUM *g = NULL;
+    OSSL_PARAM_BLD *bld = NULL;
+    OSSL_PARAM *explicitParams = NULL;
+    OSSL_PARAM *exported = NULL;
+    const char *name = NULL;
+
+    (void)data;
+
+    PRINT_MSG("Testing DH parameter generation for a group name");
+
+    ctx = EVP_PKEY_CTX_new_from_name(wpLibCtx, "DH", NULL);
+    err = (ctx == NULL) || (EVP_PKEY_paramgen_init(ctx) != 1) ||
+          (EVP_PKEY_CTX_set_group_name(ctx, "ffdhe2048") != 1) ||
+          (EVP_PKEY_CTX_set_dh_paramgen_prime_len(ctx, 3072) != 1) ||
+          (EVP_PKEY_paramgen(ctx, &params) != 1);
+    EVP_PKEY_CTX_free(ctx);
+    if (err == 0) {
+        ctx = EVP_PKEY_CTX_new_from_pkey(wpLibCtx, params, NULL);
+        err = (ctx == NULL) || (EVP_PKEY_keygen_init(ctx) != 1) ||
+              (EVP_PKEY_keygen(ctx, &key) != 1) ||
+              (EVP_PKEY_todata(key, EVP_PKEY_KEY_PARAMETERS, &exported) != 1)
+              || (OSSL_PARAM_get_utf8_string_ptr(OSSL_PARAM_locate_const(
+                  exported, OSSL_PKEY_PARAM_GROUP_NAME), &name) != 1) ||
+              (strcmp(name, "ffdhe2048") != 0);
+        EVP_PKEY_CTX_free(ctx);
+    }
+    if (err == 0) {
+        ctx = EVP_PKEY_CTX_new_from_name(osslLibCtx, "DH", NULL);
+        err = (ctx == NULL) || (EVP_PKEY_paramgen_init(ctx) != 1) ||
+              (EVP_PKEY_CTX_set_group_name(ctx, "ffdhe2048") != 1) ||
+              (EVP_PKEY_paramgen(ctx, &ref) != 1) ||
+              (EVP_PKEY_get_bn_param(ref, OSSL_PKEY_PARAM_FFC_P, &p) != 1) ||
+              (EVP_PKEY_get_bn_param(ref, OSSL_PKEY_PARAM_FFC_G, &g) != 1) ||
+              ((bld = OSSL_PARAM_BLD_new()) == NULL);
+        EVP_PKEY_CTX_free(ctx);
+    }
+    for (i = 0; (err == 0) && (i < 2); i++) {
+        EVP_PKEY_free(explicitKey);
+        explicitKey = NULL;
+        OSSL_PARAM_free(explicitParams);
+        explicitParams = NULL;
+        ctx = EVP_PKEY_CTX_new_from_name(wpLibCtx, "DH", NULL);
+        err = ((i == 1) && (BN_add_word(p, 2) != 1)) ||
+              (OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_FFC_P, p) != 1) ||
+              (OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_FFC_G, g) != 1) ||
+              ((explicitParams = OSSL_PARAM_BLD_to_param(bld)) == NULL) ||
+              (ctx == NULL) || (EVP_PKEY_fromdata_init(ctx) != 1) ||
+              (EVP_PKEY_fromdata(ctx, &explicitKey, EVP_PKEY_KEY_PARAMETERS,
+                  explicitParams) != 1) ||
+              (EVP_PKEY_parameters_eq(key, explicitKey) != (i == 0));
+        EVP_PKEY_CTX_free(ctx);
+    }
+
+    OSSL_PARAM_free(exported);
+    OSSL_PARAM_free(explicitParams);
+    OSSL_PARAM_BLD_free(bld);
+    BN_free(g);
+    BN_free(p);
+    EVP_PKEY_free(explicitKey);
+    EVP_PKEY_free(key);
+    EVP_PKEY_free(params);
+    EVP_PKEY_free(ref);
     return err;
 }
 
